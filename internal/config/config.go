@@ -96,23 +96,27 @@ type AzureBlobConfig struct {
 
 const envPrefix = "TOGA_"
 
+// cm is the package-level config manager, initialized in Init.
+var cm *jety.ConfigManager
+
 // Init sets up JETY defaults and env prefix. Call before Load.
 // If configFile is non-empty, that file is used; otherwise JETY searches
 // for toga.toml / toga.yaml / toga.json in standard paths.
 func Init(configFile string) error {
-	jety.SetEnvPrefix(envPrefix)
+	cm = jety.NewConfigManager().WithEnvPrefix(envPrefix)
 
-	// Set hardcoded defaults.
 	setDefaults()
 
 	if configFile != "" {
-		jety.SetConfigFile(configFile)
+		cm.SetConfigFile(configFile)
 	} else {
-		jety.SetConfigName("toga")
-		jety.SetConfigType("toml")
+		cm.SetConfigName("toga")
+		if err := cm.SetConfigType("toml"); err != nil {
+			return fmt.Errorf("set config type: %w", err)
+		}
 	}
 
-	if err := jety.ReadInConfig(); err != nil {
+	if err := cm.ReadInConfig(); err != nil {
 		// Config file is optional — only fail if one was explicitly requested.
 		if configFile != "" {
 			return fmt.Errorf("read config %s: %w", configFile, err)
@@ -123,115 +127,112 @@ func Init(configFile string) error {
 }
 
 func setDefaults() {
-	jety.SetDefault("port", ":3000")
-	jety.SetDefault("unix_socket", "")
-	jety.SetDefault("tls_cert", "")
-	jety.SetDefault("tls_key", "")
-	jety.SetDefault("storage_type", "disk")
-	jety.SetDefault("go_binary", "go")
-	jety.SetDefault("go_mod_cache", "")
-	jety.SetDefault("go_proxy", "")
-	jety.SetDefault("go_private", "")
-	jety.SetDefault("go_noproxy", "")
-	jety.SetDefault("go_sumdb", "")
-	jety.SetDefault("go_nosumdb", "")
-	jety.SetDefault("timeout", "300s")
-	jety.SetDefault("shutdown_timeout", "30s")
-	jety.SetDefault("log_level", "info")
-	jety.SetDefault("path_prefix", "")
-	jety.SetDefault("basic_auth_user", "")
-	jety.SetDefault("basic_auth_pass", "")
-	jety.SetDefault("network_mode", "fallback")
-	jety.SetDefault("sum_dbs", "")
-	jety.SetDefault("disk.root_path", fmt.Sprintf("%s/toga-storage", os.TempDir()))
-	jety.SetDefault("s3.region", "")
-	jety.SetDefault("s3.key", "")
-	jety.SetDefault("s3.secret", "")
-	jety.SetDefault("s3.token", "")
-	jety.SetDefault("s3.bucket", "")
-	jety.SetDefault("s3.endpoint", "")
-	jety.SetDefault("s3.force_path_style", "false")
-	jety.SetDefault("minio.endpoint", "")
-	jety.SetDefault("minio.key", "")
-	jety.SetDefault("minio.secret", "")
-	jety.SetDefault("minio.bucket", "")
-	jety.SetDefault("minio.region", "")
-	jety.SetDefault("minio.enable_ssl", "false")
-	jety.SetDefault("gcs.bucket", "")
-	jety.SetDefault("gcs.project_id", "")
-	jety.SetDefault("gcs.credentials_file", "")
-	jety.SetDefault("azureblob.account_name", "")
-	jety.SetDefault("azureblob.account_key", "")
-	jety.SetDefault("azureblob.container_name", "")
+	cm.SetDefault("port", ":3000")
+	cm.SetDefault("unix_socket", "")
+	cm.SetDefault("tls_cert", "")
+	cm.SetDefault("tls_key", "")
+	cm.SetDefault("storage_type", "disk")
+	cm.SetDefault("go_binary", "go")
+	cm.SetDefault("go_mod_cache", "")
+	cm.SetDefault("go_proxy", "")
+	cm.SetDefault("go_private", "")
+	cm.SetDefault("go_noproxy", "")
+	cm.SetDefault("go_sumdb", "")
+	cm.SetDefault("go_nosumdb", "")
+	cm.SetDefault("timeout", "300s")
+	cm.SetDefault("shutdown_timeout", "30s")
+	cm.SetDefault("log_level", "info")
+	cm.SetDefault("path_prefix", "")
+	cm.SetDefault("basic_auth_user", "")
+	cm.SetDefault("basic_auth_pass", "")
+	cm.SetDefault("network_mode", "fallback")
+	cm.SetDefault("sum_dbs", "")
+
+	// Flat keys for env var compatibility (TOGA_DISK_ROOT_PATH, not TOGA_DISK.ROOT_PATH).
+	cm.SetDefault("disk_root_path", fmt.Sprintf("%s/toga-storage", os.TempDir()))
+	cm.SetDefault("s3_region", "")
+	cm.SetDefault("s3_key", "")
+	cm.SetDefault("s3_secret", "")
+	cm.SetDefault("s3_token", "")
+	cm.SetDefault("s3_bucket", "")
+	cm.SetDefault("s3_endpoint", "")
+	cm.SetDefault("s3_force_path_style", "false")
+	cm.SetDefault("minio_endpoint", "")
+	cm.SetDefault("minio_key", "")
+	cm.SetDefault("minio_secret", "")
+	cm.SetDefault("minio_bucket", "")
+	cm.SetDefault("minio_region", "")
+	cm.SetDefault("minio_enable_ssl", "false")
+	cm.SetDefault("gcs_bucket", "")
+	cm.SetDefault("gcs_project_id", "")
+	cm.SetDefault("gcs_credentials_file", "")
+	cm.SetDefault("azureblob_account_name", "")
+	cm.SetDefault("azureblob_account_key", "")
+	cm.SetDefault("azureblob_container_name", "")
 }
 
 // Load builds a Config from JETY state. Call Init first.
 func Load() *Config {
 	cfg := &Config{
-		Port:            jety.GetString("port"),
-		UnixSocket:      jety.GetString("unix_socket"),
-		TLSCertFile:     jety.GetString("tls_cert"),
-		TLSKeyFile:      jety.GetString("tls_key"),
-		StorageType:     strings.ToLower(jety.GetString("storage_type")),
-		GoBinary:        jety.GetString("go_binary"),
-		GoModCache:      jety.GetString("go_mod_cache"),
-		GoProxy:         jety.GetString("go_proxy"),
-		GoPrivate:       jety.GetString("go_private"),
-		GoNoProxy:       jety.GetString("go_noproxy"),
-		GoSumDB:         jety.GetString("go_sumdb"),
-		GoNoSumDB:       jety.GetString("go_nosumdb"),
-		Timeout:         jety.GetDuration("timeout"),
-		ShutdownTimeout: jety.GetDuration("shutdown_timeout"),
-		LogLevel:        jety.GetString("log_level"),
-		PathPrefix:      jety.GetString("path_prefix"),
-		BasicAuthUser:   jety.GetString("basic_auth_user"),
-		BasicAuthPass:   jety.GetString("basic_auth_pass"),
-		NetworkMode:     jety.GetString("network_mode"),
+		Port:            cm.GetString("port"),
+		UnixSocket:      cm.GetString("unix_socket"),
+		TLSCertFile:     cm.GetString("tls_cert"),
+		TLSKeyFile:      cm.GetString("tls_key"),
+		StorageType:     strings.ToLower(cm.GetString("storage_type")),
+		GoBinary:        cm.GetString("go_binary"),
+		GoModCache:      cm.GetString("go_mod_cache"),
+		GoProxy:         cm.GetString("go_proxy"),
+		GoPrivate:       cm.GetString("go_private"),
+		GoNoProxy:       cm.GetString("go_noproxy"),
+		GoSumDB:         cm.GetString("go_sumdb"),
+		GoNoSumDB:       cm.GetString("go_nosumdb"),
+		Timeout:         cm.GetDuration("timeout"),
+		ShutdownTimeout: cm.GetDuration("shutdown_timeout"),
+		LogLevel:        cm.GetString("log_level"),
+		PathPrefix:      cm.GetString("path_prefix"),
+		BasicAuthUser:   cm.GetString("basic_auth_user"),
+		BasicAuthPass:   cm.GetString("basic_auth_pass"),
+		NetworkMode:     cm.GetString("network_mode"),
 	}
 
 	// Sum DBs
-	if s := jety.GetString("sum_dbs"); s != "" {
+	if s := cm.GetString("sum_dbs"); s != "" {
 		cfg.ProxiedSumDBs = strings.Split(s, ",")
 	}
 
-	// Disk
 	cfg.Disk = DiskConfig{
-		RootPath: jety.GetString("disk.root_path"),
+		RootPath: cm.GetString("disk_root_path"),
 	}
 
-	// S3
 	cfg.S3 = S3Config{
-		Region:         jety.GetString("s3.region"),
-		Key:            jety.GetString("s3.key"),
-		Secret:         jety.GetString("s3.secret"),
-		Token:          jety.GetString("s3.token"),
-		Bucket:         jety.GetString("s3.bucket"),
-		Endpoint:       jety.GetString("s3.endpoint"),
-		ForcePathStyle: jety.GetBool("s3.force_path_style"),
+		Region:         cm.GetString("s3_region"),
+		Key:            cm.GetString("s3_key"),
+		Secret:         cm.GetString("s3_secret"),
+		Token:          cm.GetString("s3_token"),
+		Bucket:         cm.GetString("s3_bucket"),
+		Endpoint:       cm.GetString("s3_endpoint"),
+		ForcePathStyle: cm.GetBool("s3_force_path_style"),
 	}
 
-	// MinIO
 	cfg.Minio = MinioConfig{
-		Endpoint:  jety.GetString("minio.endpoint"),
-		Key:       jety.GetString("minio.key"),
-		Secret:    jety.GetString("minio.secret"),
-		Bucket:    jety.GetString("minio.bucket"),
-		Region:    jety.GetString("minio.region"),
-		EnableSSL: jety.GetBool("minio.enable_ssl"),
+		Endpoint:  cm.GetString("minio_endpoint"),
+		Key:       cm.GetString("minio_key"),
+		Secret:    cm.GetString("minio_secret"),
+		Bucket:    cm.GetString("minio_bucket"),
+		Region:    cm.GetString("minio_region"),
+		EnableSSL: cm.GetBool("minio_enable_ssl"),
 	}
 
-	// GCS
 	cfg.GCS = GCSConfig{
-		Bucket:          jety.GetString("gcs.bucket"),
-		ProjectID:       jety.GetString("gcs.project_id"),
-		CredentialsFile: jety.GetString("gcs.credentials_file"),
+		Bucket:          cm.GetString("gcs_bucket"),
+		ProjectID:       cm.GetString("gcs_project_id"),
+		CredentialsFile: cm.GetString("gcs_credentials_file"),
 	}
 
-	// Azure Blob
 	cfg.AzureBlob = AzureBlobConfig{
-		AccountName:   jety.GetString("azureblob.account_name"),
-		AccountKey:    jety.GetString("azureblob.account_key"),
-		ContainerName: jety.GetString("azureblob.container_name"),
+		AccountName:   cm.GetString("azureblob_account_name"),
+		AccountKey:    cm.GetString("azureblob_account_key"),
+		ContainerName: cm.GetString("azureblob_container_name"),
 	}
 
 	return cfg

@@ -34,7 +34,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "toga",
 		Short: "A Go module proxy — drop-in replacement for Athens",
-		Long:  "Toga is a Go module proxy powered by goproxy. It supports S3, MinIO, GCS, Azure Blob, and disk storage backends with Athens-compatible configuration.",
+		Long:  "Toga is a Go module proxy powered by goproxy. It supports S3, MinIO, GCS, Azure Blob, and disk storage backends with multiple storage backends.",
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return config.Init(configFile)
 		},

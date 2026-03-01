@@ -124,3 +124,46 @@ func TestBuildHandlerReadyz(t *testing.T) {
 		t.Errorf("expected 200 for readyz, got %d", w.Code)
 	}
 }
+
+func TestBasicAuthNoCredentials(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := basicAuth(inner, "admin", "secret")
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestValidateStorageDiskValid(t *testing.T) {
+	cfg := &config.Config{
+		StorageType: "disk",
+		Disk:        config.DiskConfig{RootPath: "/tmp/test"},
+	}
+	if err := validateStorage(cfg); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateStorageS3Valid(t *testing.T) {
+	cfg := &config.Config{
+		StorageType: "s3",
+		S3:          config.S3Config{Bucket: "my-bucket"},
+	}
+	if err := validateStorage(cfg); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestValidateStorageUnknownType(t *testing.T) {
+	cfg := &config.Config{StorageType: "unknown"}
+	// validateStorage allows unknown types (newCacher catches them)
+	if err := validateStorage(cfg); err != nil {
+		t.Errorf("unexpected error: %v", err)
+	}
+}

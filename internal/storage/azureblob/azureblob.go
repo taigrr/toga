@@ -60,3 +60,9 @@ func (c *Cacher) Put(ctx context.Context, name string, content io.ReadSeeker) er
 	_, err = c.client.UploadBuffer(ctx, c.container, name, data, nil)
 	return err
 }
+
+// Compile-time interface check.
+var _ interface {
+	Get(context.Context, string) (io.ReadCloser, error)
+	Put(context.Context, string, io.ReadSeeker) error
+} = (*Cacher)(nil)

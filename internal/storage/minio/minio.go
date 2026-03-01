@@ -81,3 +81,9 @@ func (c *Cacher) Put(ctx context.Context, name string, content io.ReadSeeker) er
 	_, err = c.client.PutObject(ctx, c.bucket, name, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{})
 	return err
 }
+
+// Compile-time interface check.
+var _ interface {
+	Get(context.Context, string) (io.ReadCloser, error)
+	Put(context.Context, string, io.ReadSeeker) error
+} = (*Cacher)(nil)
