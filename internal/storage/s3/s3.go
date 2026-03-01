@@ -8,9 +8,20 @@ import (
 	"context"
 	"io"
 	"io/fs"
+	"strings"
 
 	"github.com/minio/minio-go/v7"
 	miniocreds "github.com/minio/minio-go/v7/pkg/credentials"
+)
+
+const (
+	defaultRegion    = "us-east-1"
+	s3EndpointFormat = "s3.%s.amazonaws.com"
+	schemeHTTPS      = "https://"
+	schemeHTTP       = "http://"
+
+	errNoSuchKey    = "NoSuchKey"
+	errNoSuchBucket = "NoSuchBucket"
 )
 
 // Config holds S3 connection parameters.
@@ -31,32 +42,13 @@ type Cacher struct {
 }
 
 // New creates an S3-backed Cacher using the MinIO SDK.
-func New(ctx context.Context, cfg Config) (*Cacher, error) {
-	endpoint := cfg.Endpoint
-	secure := true
-
-	// Default to AWS S3 endpoint if none specified.
-	if endpoint == "" {
-		region := cfg.Region
-		if region == "" {
-			region = "us-east-1"
-		}
-		endpoint = "s3." + region + ".amazonaws.com"
-	} else {
-		// Strip scheme if present and detect SSL.
-		if len(endpoint) > 8 && endpoint[:8] == "https://" {
-			endpoint = endpoint[8:]
-		} else if len(endpoint) > 7 && endpoint[:7] == "http://" {
-			endpoint = endpoint[7:]
-			secure = false
-		}
-	}
+func New(_ context.Context, cfg Config) (*Cacher, error) {
+	endpoint, secure := parseEndpoint(cfg)
 
 	var creds *miniocreds.Credentials
 	if cfg.Key != "" && cfg.Secret != "" {
 		creds = miniocreds.NewStaticV4(cfg.Key, cfg.Secret, cfg.Token)
 	} else {
-		// Fall back to IAM/environment credentials (EC2, ECS, etc.)
 		creds = miniocreds.NewIAM("")
 	}
 
@@ -72,6 +64,29 @@ func New(ctx context.Context, cfg Config) (*Cacher, error) {
 	return &Cacher{client: client, bucket: cfg.Bucket}, nil
 }
 
+func parseEndpoint(cfg Config) (endpoint string, secure bool) {
+	secure = true
+
+	if cfg.Endpoint == "" {
+		region := cfg.Region
+		if region == "" {
+			region = defaultRegion
+		}
+		return "s3." + region + ".amazonaws.com", secure
+	}
+
+	endpoint = cfg.Endpoint
+	switch {
+	case strings.HasPrefix(endpoint, schemeHTTPS):
+		endpoint = strings.TrimPrefix(endpoint, schemeHTTPS)
+	case strings.HasPrefix(endpoint, schemeHTTP):
+		endpoint = strings.TrimPrefix(endpoint, schemeHTTP)
+		secure = false
+	}
+
+	return endpoint, secure
+}
+
 // Get retrieves a cached module file by name.
 // Returns fs.ErrNotExist if the key does not exist.
 func (c *Cacher) Get(ctx context.Context, name string) (io.ReadCloser, error) {
@@ -82,7 +97,7 @@ func (c *Cacher) Get(ctx context.Context, name string) (io.ReadCloser, error) {
 	if _, err := obj.Stat(); err != nil {
 		obj.Close()
 		errResp := minio.ToErrorResponse(err)
-		if errResp.Code == "NoSuchKey" || errResp.Code == "NoSuchBucket" {
+		if errResp.Code == errNoSuchKey || errResp.Code == errNoSuchBucket {
 			return nil, fs.ErrNotExist
 		}
 		return nil, err

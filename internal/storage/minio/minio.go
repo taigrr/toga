@@ -12,6 +12,8 @@ import (
 	miniocreds "github.com/minio/minio-go/v7/pkg/credentials"
 )
 
+const errNoSuchKey = "NoSuchKey"
+
 // Config holds MinIO connection parameters.
 type Config struct {
 	Endpoint  string
@@ -39,13 +41,13 @@ func New(ctx context.Context, cfg Config) (*Cacher, error) {
 		return nil, err
 	}
 
-	// Ensure bucket exists.
-	exists, err := client.BucketExists(ctx, cfg.Bucket)
-	if err != nil {
-		return nil, err
-	}
-	if !exists {
-		if err := client.MakeBucket(ctx, cfg.Bucket, minio.MakeBucketOptions{Region: cfg.Region}); err != nil {
+	// Ensure bucket exists. MakeBucket is idempotent if the bucket already
+	// exists and is owned by the same account; the error is safe to ignore
+	// in that case (avoids a TOCTOU race with BucketExists).
+	if err := client.MakeBucket(ctx, cfg.Bucket, minio.MakeBucketOptions{Region: cfg.Region}); err != nil {
+		// Ignore "bucket already owned by you" errors.
+		exists, checkErr := client.BucketExists(ctx, cfg.Bucket)
+		if checkErr != nil || !exists {
 			return nil, err
 		}
 	}
@@ -59,11 +61,10 @@ func (c *Cacher) Get(ctx context.Context, name string) (io.ReadCloser, error) {
 	if err != nil {
 		return nil, err
 	}
-	// Check if the object actually exists by stat-ing it.
 	if _, err := obj.Stat(); err != nil {
 		obj.Close()
 		errResp := minio.ToErrorResponse(err)
-		if errResp.Code == "NoSuchKey" {
+		if errResp.Code == errNoSuchKey {
 			return nil, fs.ErrNotExist
 		}
 		return nil, err
