@@ -1,6 +1,5 @@
 // Package config loads toga configuration using JETY (JSON, ENV, TOML, YAML).
-// Environment variables use the TOGA_ prefix. Athens-compatible env vars are
-// also supported and take precedence over TOGA_ vars for drop-in compatibility.
+// Environment variables use the TOGA_ prefix.
 package config
 
 import (
@@ -120,9 +119,6 @@ func Init(configFile string) error {
 		}
 	}
 
-	// Apply Athens-compatible env var overrides (highest priority).
-	applyAthensOverrides()
-
 	return nil
 }
 
@@ -167,59 +163,6 @@ func setDefaults() {
 	jety.SetDefault("azureblob.account_name", "")
 	jety.SetDefault("azureblob.account_key", "")
 	jety.SetDefault("azureblob.container_name", "")
-}
-
-// applyAthensOverrides applies Athens-compatible env vars with highest priority.
-// These override TOGA_ env vars and config file values for drop-in compatibility.
-func applyAthensOverrides() {
-	overrides := map[string]string{
-		"port":                     "ATHENS_PORT",
-		"unix_socket":              "ATHENS_UNIX_SOCKET",
-		"tls_cert":                 "ATHENS_TLSCERT_FILE",
-		"tls_key":                  "ATHENS_TLSKEY_FILE",
-		"storage_type":             "ATHENS_STORAGE_TYPE",
-		"go_binary":                "GO_BINARY_PATH",
-		"go_mod_cache":             "GOMODCACHE",
-		"go_proxy":                 "GOPROXY",
-		"go_private":               "GOPRIVATE",
-		"go_noproxy":               "GONOPROXY",
-		"go_sumdb":                 "GOSUMDB",
-		"go_nosumdb":               "GONOSUMDB",
-		"timeout":                  "ATHENS_TIMEOUT",
-		"shutdown_timeout":         "ATHENS_SHUTDOWN_TIMEOUT",
-		"log_level":                "ATHENS_LOG_LEVEL",
-		"path_prefix":              "ATHENS_PATH_PREFIX",
-		"basic_auth_user":          "BASIC_AUTH_USER",
-		"basic_auth_pass":          "BASIC_AUTH_PASS",
-		"network_mode":             "ATHENS_NETWORK_MODE",
-		"sum_dbs":                  "ATHENS_SUM_DBS",
-		"disk.root_path":           "ATHENS_DISK_STORAGE_ROOT",
-		"s3.region":                "AWS_REGION",
-		"s3.key":                   "AWS_ACCESS_KEY_ID",
-		"s3.secret":                "AWS_SECRET_ACCESS_KEY",
-		"s3.token":                 "AWS_SESSION_TOKEN",
-		"s3.bucket":                "ATHENS_S3_BUCKET_NAME",
-		"s3.endpoint":              "AWS_ENDPOINT",
-		"s3.force_path_style":      "AWS_FORCE_PATH_STYLE",
-		"minio.endpoint":           "ATHENS_MINIO_ENDPOINT",
-		"minio.key":                "ATHENS_MINIO_ACCESS_KEY_ID",
-		"minio.secret":             "ATHENS_MINIO_SECRET_ACCESS_KEY",
-		"minio.bucket":             "ATHENS_MINIO_BUCKET_NAME",
-		"minio.region":             "ATHENS_MINIO_REGION",
-		"minio.enable_ssl":         "ATHENS_MINIO_USE_SSL",
-		"gcs.bucket":               "ATHENS_GCP_BUCKET",
-		"gcs.project_id":           "ATHENS_GCP_PROJECT_ID",
-		"gcs.credentials_file":     "ATHENS_GCP_CREDENTIALS_FILE",
-		"azureblob.account_name":   "ATHENS_AZURE_ACCOUNT_NAME",
-		"azureblob.account_key":    "ATHENS_AZURE_ACCOUNT_KEY",
-		"azureblob.container_name": "ATHENS_AZURE_CONTAINER_NAME",
-	}
-
-	for key, envVar := range overrides {
-		if v := os.Getenv(envVar); v != "" {
-			jety.Set(key, v)
-		}
-	}
 }
 
 // Load builds a Config from JETY state. Call Init first.
