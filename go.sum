@@ -224,6 +224,8 @@ github.com/taigrr/jety v0.2.1-0.20260301233724-4c8d8960be34 h1:/NNUVYxf6aYdei/uo
 github.com/taigrr/jety v0.2.1-0.20260301233724-4c8d8960be34/go.mod h1:PtJDxNFDqR6739at6QrjlE4MGf/zcs21Y86KVQMKPEk=
 github.com/taigrr/jety v0.2.1 h1:9pg8CEmCmjiaNKb+Be4C2WRie1tu6EY1vU5U/llPiY8=
 github.com/taigrr/jety v0.2.1/go.mod h1:PtJDxNFDqR6739at6QrjlE4MGf/zcs21Y86KVQMKPEk=
+github.com/taigrr/jety v0.2.2-0.20260301234517-91b69246fa3c h1:spLqogteHufVv1f+9kKVz4YXcKo5btiu+qrdCeaLivg=
+github.com/taigrr/jety v0.2.2-0.20260301234517-91b69246fa3c/go.mod h1:PtJDxNFDqR6739at6QrjlE4MGf/zcs21Y86KVQMKPEk=
 github.com/tinylib/msgp v1.6.1 h1:ESRv8eL3u+DNHUoSAAQRE50Hm162zqAnBoGv9PzScPY=
 github.com/tinylib/msgp v1.6.1/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/tinylib/msgp v1.6.3 h1:bCSxiTz386UTgyT1i0MSCvdbWjVW+8sG3PjkGsZQt4s=
