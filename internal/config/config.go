@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -109,6 +110,11 @@ func Init(configFile string) error {
 
 	if configFile != "" {
 		cm.SetConfigFile(configFile)
+		if ct := configTypeFromExt(configFile); ct != "" {
+			if err := cm.SetConfigType(ct); err != nil {
+				return fmt.Errorf("set config type: %w", err)
+			}
+		}
 	} else {
 		cm.SetConfigName("toga")
 		if err := cm.SetConfigType("toml"); err != nil {
@@ -169,6 +175,20 @@ func setDefaults() {
 	cm.SetDefault("azureblob_account_name", "")
 	cm.SetDefault("azureblob_account_key", "")
 	cm.SetDefault("azureblob_container_name", "")
+}
+
+// configTypeFromExt returns "toml", "yaml", or "json" based on the file extension.
+func configTypeFromExt(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".toml":
+		return "toml"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".json":
+		return "json"
+	default:
+		return ""
+	}
 }
 
 // Load builds a Config from JETY state. Call Init first.

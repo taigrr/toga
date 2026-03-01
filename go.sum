@@ -178,6 +178,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/taigrr/jety v0.2.0 h1:oGv6i1yBxdV5YnRD4f7V9Nv74PxY0kVIXCTJsRkqgmo=
 github.com/taigrr/jety v0.2.0/go.mod h1:PtJDxNFDqR6739at6QrjlE4MGf/zcs21Y86KVQMKPEk=
+github.com/taigrr/jety v0.2.1-0.20260301233724-4c8d8960be34 h1:/NNUVYxf6aYdei/uo9rWEeH2FRYxyGjsW1OEA5evyq0=
+github.com/taigrr/jety v0.2.1-0.20260301233724-4c8d8960be34/go.mod h1:PtJDxNFDqR6739at6QrjlE4MGf/zcs21Y86KVQMKPEk=
 github.com/tinylib/msgp v1.6.1 h1:ESRv8eL3u+DNHUoSAAQRE50Hm162zqAnBoGv9PzScPY=
 github.com/tinylib/msgp v1.6.1/go.mod h1:RSp0LW9oSxFut3KzESt5Voq4GVWyS+PSulT77roAqEA=
 github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e h1:JVG44RsyaB9T2KIHavMF/ppJZNG9ZpyihvCd0w101no=
