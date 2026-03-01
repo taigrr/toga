@@ -1,0 +1,46 @@
+# Toga configuration — all values can also be set via TOGA_ env vars.
+# e.g. TOGA_PORT=":3000", TOGA_STORAGE_TYPE="s3"
+
+port = ":3000"
+storage_type = "disk"
+log_level = "info"
+network_mode = "fallback"
+# timeout = "300s"
+# shutdown_timeout = "30s"
+# path_prefix = ""
+# basic_auth_user = ""
+# basic_auth_pass = ""
+# sum_dbs = ""
+# tls_cert = ""
+# tls_key = ""
+# unix_socket = ""
+
+[disk]
+root_path = "/tmp/toga-storage"
+
+# [s3]
+# region = "us-east-1"
+# bucket = ""
+# endpoint = ""
+# key = ""
+# secret = ""
+# token = ""
+# force_path_style = false
+
+# [minio]
+# endpoint = ""
+# key = ""
+# secret = ""
+# bucket = ""
+# region = ""
+# enable_ssl = false
+
+# [gcs]
+# bucket = ""
+# project_id = ""
+# credentials_file = ""
+
+# [azureblob]
+# account_name = ""
+# account_key = ""
+# container_name = ""
