@@ -172,7 +172,11 @@ func setDefaults() {
 }
 
 // Load builds a Config from JETY state. Call Init first.
+// Panics if Init has not been called.
 func Load() *Config {
+	if cm == nil {
+		panic("config: Load called before Init")
+	}
 	cfg := &Config{
 		Port:            cm.GetString("port"),
 		UnixSocket:      cm.GetString("unix_socket"),

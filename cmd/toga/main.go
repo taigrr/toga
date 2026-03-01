@@ -34,7 +34,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "toga",
 		Short: "A Go module proxy — drop-in replacement for Athens",
-		Long:  "Toga is a Go module proxy powered by goproxy. It supports S3, MinIO, GCS, Azure Blob, and disk storage backends with multiple storage backends.",
+		Long:  "Toga is a Go module proxy powered by goproxy. It supports disk, S3, MinIO, GCS, and Azure Blob storage backends.",
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return config.Init(configFile)
 		},
@@ -48,7 +48,7 @@ func main() {
 	}
 }
 
-func runServe(cmd *cobra.Command, args []string) error {
+func runServe(cmd *cobra.Command, _ []string) error {
 	cfg := config.Load()
 
 	logger := newLogger(cfg.LogLevel)
@@ -69,9 +69,20 @@ func runServe(cmd *cobra.Command, args []string) error {
 		TempDir: os.TempDir(),
 	}
 
-	if cfg.GoModCache != "" {
-		if err := os.Setenv("GOMODCACHE", cfg.GoModCache); err != nil {
-			return fmt.Errorf("set GOMODCACHE: %w", err)
+	// Propagate Go environment variables so the Go toolchain picks them up.
+	goEnvVars := map[string]string{
+		"GOMODCACHE": cfg.GoModCache,
+		"GOPROXY":    cfg.GoProxy,
+		"GOPRIVATE":  cfg.GoPrivate,
+		"GONOPROXY":  cfg.GoNoProxy,
+		"GOSUMDB":    cfg.GoSumDB,
+		"GONOSUMDB":  cfg.GoNoSumDB,
+	}
+	for k, v := range goEnvVars {
+		if v != "" {
+			if err := os.Setenv(k, v); err != nil {
+				return fmt.Errorf("set %s: %w", k, err)
+			}
 		}
 	}
 
