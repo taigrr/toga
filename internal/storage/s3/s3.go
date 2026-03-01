@@ -1,19 +1,16 @@
 // Package s3 implements goproxy.Cacher backed by Amazon S3 (or S3-compatible stores).
+// Uses the MinIO SDK for S3 compatibility.
 // The key layout is Athens-compatible: <module>/@v/<version>.<ext>
 package s3
 
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"io/fs"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/minio/minio-go/v7"
+	miniocreds "github.com/minio/minio-go/v7/pkg/credentials"
 )
 
 // Config holds S3 connection parameters.
@@ -27,81 +24,78 @@ type Config struct {
 	ForcePathStyle bool
 }
 
-// Cacher implements goproxy.Cacher using S3.
+// Cacher implements goproxy.Cacher using S3 via the MinIO SDK.
 type Cacher struct {
-	client *s3.Client
+	client *minio.Client
 	bucket string
 }
 
-// New creates an S3-backed Cacher.
+// New creates an S3-backed Cacher using the MinIO SDK.
 func New(ctx context.Context, cfg Config) (*Cacher, error) {
-	var opts []func(*awsconfig.LoadOptions) error
+	endpoint := cfg.Endpoint
+	secure := true
 
-	if cfg.Region != "" {
-		opts = append(opts, awsconfig.WithRegion(cfg.Region))
+	// Default to AWS S3 endpoint if none specified.
+	if endpoint == "" {
+		region := cfg.Region
+		if region == "" {
+			region = "us-east-1"
+		}
+		endpoint = "s3." + region + ".amazonaws.com"
+	} else {
+		// Strip scheme if present and detect SSL.
+		if len(endpoint) > 8 && endpoint[:8] == "https://" {
+			endpoint = endpoint[8:]
+		} else if len(endpoint) > 7 && endpoint[:7] == "http://" {
+			endpoint = endpoint[7:]
+			secure = false
+		}
 	}
 
+	var creds *miniocreds.Credentials
 	if cfg.Key != "" && cfg.Secret != "" {
-		opts = append(opts, awsconfig.WithCredentialsProvider(
-			credentials.NewStaticCredentialsProvider(cfg.Key, cfg.Secret, cfg.Token),
-		))
+		creds = miniocreds.NewStaticV4(cfg.Key, cfg.Secret, cfg.Token)
+	} else {
+		// Fall back to IAM/environment credentials (EC2, ECS, etc.)
+		creds = miniocreds.NewIAM("")
 	}
 
-	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
+	client, err := minio.New(endpoint, &minio.Options{
+		Creds:  creds,
+		Secure: secure,
+		Region: cfg.Region,
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var s3Opts []func(*s3.Options)
-	if cfg.Endpoint != "" {
-		s3Opts = append(s3Opts, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(cfg.Endpoint)
-			o.UsePathStyle = cfg.ForcePathStyle
-		})
-	} else if cfg.ForcePathStyle {
-		s3Opts = append(s3Opts, func(o *s3.Options) {
-			o.UsePathStyle = true
-		})
-	}
-
-	client := s3.NewFromConfig(awsCfg, s3Opts...)
-
-	return &Cacher{
-		client: client,
-		bucket: cfg.Bucket,
-	}, nil
+	return &Cacher{client: client, bucket: cfg.Bucket}, nil
 }
 
 // Get retrieves a cached module file by name.
 // Returns fs.ErrNotExist if the key does not exist.
 func (c *Cacher) Get(ctx context.Context, name string) (io.ReadCloser, error) {
-	out, err := c.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(c.bucket),
-		Key:    aws.String(name),
-	})
+	obj, err := c.client.GetObject(ctx, c.bucket, name, minio.GetObjectOptions{})
 	if err != nil {
-		var nsk *types.NoSuchKey
-		var nsb *types.NotFound
-		if errors.As(err, &nsk) || errors.As(err, &nsb) {
+		return nil, err
+	}
+	if _, err := obj.Stat(); err != nil {
+		obj.Close()
+		errResp := minio.ToErrorResponse(err)
+		if errResp.Code == "NoSuchKey" || errResp.Code == "NoSuchBucket" {
 			return nil, fs.ErrNotExist
 		}
 		return nil, err
 	}
-	return out.Body, nil
+	return obj, nil
 }
 
 // Put stores a module file in S3.
 func (c *Cacher) Put(ctx context.Context, name string, content io.ReadSeeker) error {
-	// Read all content to get the size for Content-Length.
 	data, err := io.ReadAll(content)
 	if err != nil {
 		return err
 	}
-
-	_, err = c.client.PutObject(ctx, &s3.PutObjectInput{
-		Bucket: aws.String(c.bucket),
-		Key:    aws.String(name),
-		Body:   bytes.NewReader(data),
-	})
+	_, err = c.client.PutObject(ctx, c.bucket, name, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{})
 	return err
 }
