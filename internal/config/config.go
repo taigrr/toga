@@ -117,6 +117,7 @@ func Init(configFile string) error {
 		}
 	} else {
 		cm.SetConfigName("toga")
+		cm.SetConfigDir(".")
 		if err := cm.SetConfigType("toml"); err != nil {
 			return fmt.Errorf("set config type: %w", err)
 		}

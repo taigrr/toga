@@ -69,6 +69,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		TempDir: os.TempDir(),
 	}
 
+	// TODO: implement NetworkMode (strict/offline/fallback) to control
+	// whether toga serves from cache only, upstream only, or falls back.
+
 	// Propagate Go environment variables so the Go toolchain picks them up.
 	goEnvVars := map[string]string{
 		"GOMODCACHE": cfg.GoModCache,
@@ -98,6 +101,8 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
+		WriteTimeout:      cfg.Timeout,
+		ReadTimeout:       cfg.Timeout,
 	}
 
 	ln, err := listen(cfg)
