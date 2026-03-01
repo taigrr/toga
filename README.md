@@ -80,4 +80,4 @@ docker run -p 3000:3000 ghcr.io/taigrr/toga
 
 ## License
 
-MIT
+0BSD

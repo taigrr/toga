@@ -1,6 +1,6 @@
 // Package config loads toga configuration using JETY (JSON, ENV, TOML, YAML).
 // Environment variables use the TOGA_ prefix. Athens-compatible env vars are
-// also supported as aliases (loaded via SetDefault so JETY env takes precedence).
+// also supported and take precedence over TOGA_ vars for drop-in compatibility.
 package config
 
 import (
@@ -103,7 +103,7 @@ const envPrefix = "TOGA_"
 func Init(configFile string) error {
 	jety.SetEnvPrefix(envPrefix)
 
-	// Set defaults (including Athens-compatible env var fallbacks).
+	// Set hardcoded defaults.
 	setDefaults()
 
 	if configFile != "" {
@@ -120,68 +120,106 @@ func Init(configFile string) error {
 		}
 	}
 
+	// Apply Athens-compatible env var overrides (highest priority).
+	applyAthensOverrides()
+
 	return nil
 }
 
 func setDefaults() {
-	jety.SetDefault("port", athensEnvOr("ATHENS_PORT", ":3000"))
-	jety.SetDefault("unix_socket", os.Getenv("ATHENS_UNIX_SOCKET"))
-	jety.SetDefault("tls_cert", os.Getenv("ATHENS_TLSCERT_FILE"))
-	jety.SetDefault("tls_key", os.Getenv("ATHENS_TLSKEY_FILE"))
-	jety.SetDefault("storage_type", athensEnvOr("ATHENS_STORAGE_TYPE", "disk"))
-	jety.SetDefault("go_binary", athensEnvOr("GO_BINARY_PATH", "go"))
-	jety.SetDefault("go_mod_cache", os.Getenv("GOMODCACHE"))
-	jety.SetDefault("go_proxy", os.Getenv("GOPROXY"))
-	jety.SetDefault("go_private", os.Getenv("GOPRIVATE"))
-	jety.SetDefault("go_noproxy", os.Getenv("GONOPROXY"))
-	jety.SetDefault("go_sumdb", os.Getenv("GOSUMDB"))
-	jety.SetDefault("go_nosumdb", os.Getenv("GONOSUMDB"))
-	jety.SetDefault("timeout", athensEnvOr("ATHENS_TIMEOUT", "300s"))
-	jety.SetDefault("shutdown_timeout", athensEnvOr("ATHENS_SHUTDOWN_TIMEOUT", "30s"))
-	jety.SetDefault("log_level", athensEnvOr("ATHENS_LOG_LEVEL", "info"))
-	jety.SetDefault("path_prefix", os.Getenv("ATHENS_PATH_PREFIX"))
-	jety.SetDefault("basic_auth_user", os.Getenv("BASIC_AUTH_USER"))
-	jety.SetDefault("basic_auth_pass", os.Getenv("BASIC_AUTH_PASS"))
-	jety.SetDefault("network_mode", athensEnvOr("ATHENS_NETWORK_MODE", "fallback"))
-	jety.SetDefault("sum_dbs", os.Getenv("ATHENS_SUM_DBS"))
-
-	// Disk
-	jety.SetDefault("disk.root_path", athensEnvOr("ATHENS_DISK_STORAGE_ROOT", fmt.Sprintf("%s/toga-storage", os.TempDir())))
-
-	// S3
-	jety.SetDefault("s3.region", os.Getenv("AWS_REGION"))
-	jety.SetDefault("s3.key", os.Getenv("AWS_ACCESS_KEY_ID"))
-	jety.SetDefault("s3.secret", os.Getenv("AWS_SECRET_ACCESS_KEY"))
-	jety.SetDefault("s3.token", os.Getenv("AWS_SESSION_TOKEN"))
-	jety.SetDefault("s3.bucket", os.Getenv("ATHENS_S3_BUCKET_NAME"))
-	jety.SetDefault("s3.endpoint", os.Getenv("AWS_ENDPOINT"))
-	jety.SetDefault("s3.force_path_style", os.Getenv("AWS_FORCE_PATH_STYLE"))
-
-	// MinIO
-	jety.SetDefault("minio.endpoint", os.Getenv("ATHENS_MINIO_ENDPOINT"))
-	jety.SetDefault("minio.key", os.Getenv("ATHENS_MINIO_ACCESS_KEY_ID"))
-	jety.SetDefault("minio.secret", os.Getenv("ATHENS_MINIO_SECRET_ACCESS_KEY"))
-	jety.SetDefault("minio.bucket", os.Getenv("ATHENS_MINIO_BUCKET_NAME"))
-	jety.SetDefault("minio.region", os.Getenv("ATHENS_MINIO_REGION"))
-	jety.SetDefault("minio.enable_ssl", os.Getenv("ATHENS_MINIO_USE_SSL"))
-
-	// GCS
-	jety.SetDefault("gcs.bucket", os.Getenv("ATHENS_GCP_BUCKET"))
-	jety.SetDefault("gcs.project_id", os.Getenv("ATHENS_GCP_PROJECT_ID"))
-	jety.SetDefault("gcs.credentials_file", os.Getenv("ATHENS_GCP_CREDENTIALS_FILE"))
-
-	// Azure Blob
-	jety.SetDefault("azureblob.account_name", os.Getenv("ATHENS_AZURE_ACCOUNT_NAME"))
-	jety.SetDefault("azureblob.account_key", os.Getenv("ATHENS_AZURE_ACCOUNT_KEY"))
-	jety.SetDefault("azureblob.container_name", os.Getenv("ATHENS_AZURE_CONTAINER_NAME"))
+	jety.SetDefault("port", ":3000")
+	jety.SetDefault("unix_socket", "")
+	jety.SetDefault("tls_cert", "")
+	jety.SetDefault("tls_key", "")
+	jety.SetDefault("storage_type", "disk")
+	jety.SetDefault("go_binary", "go")
+	jety.SetDefault("go_mod_cache", "")
+	jety.SetDefault("go_proxy", "")
+	jety.SetDefault("go_private", "")
+	jety.SetDefault("go_noproxy", "")
+	jety.SetDefault("go_sumdb", "")
+	jety.SetDefault("go_nosumdb", "")
+	jety.SetDefault("timeout", "300s")
+	jety.SetDefault("shutdown_timeout", "30s")
+	jety.SetDefault("log_level", "info")
+	jety.SetDefault("path_prefix", "")
+	jety.SetDefault("basic_auth_user", "")
+	jety.SetDefault("basic_auth_pass", "")
+	jety.SetDefault("network_mode", "fallback")
+	jety.SetDefault("sum_dbs", "")
+	jety.SetDefault("disk.root_path", fmt.Sprintf("%s/toga-storage", os.TempDir()))
+	jety.SetDefault("s3.region", "")
+	jety.SetDefault("s3.key", "")
+	jety.SetDefault("s3.secret", "")
+	jety.SetDefault("s3.token", "")
+	jety.SetDefault("s3.bucket", "")
+	jety.SetDefault("s3.endpoint", "")
+	jety.SetDefault("s3.force_path_style", "false")
+	jety.SetDefault("minio.endpoint", "")
+	jety.SetDefault("minio.key", "")
+	jety.SetDefault("minio.secret", "")
+	jety.SetDefault("minio.bucket", "")
+	jety.SetDefault("minio.region", "")
+	jety.SetDefault("minio.enable_ssl", "false")
+	jety.SetDefault("gcs.bucket", "")
+	jety.SetDefault("gcs.project_id", "")
+	jety.SetDefault("gcs.credentials_file", "")
+	jety.SetDefault("azureblob.account_name", "")
+	jety.SetDefault("azureblob.account_key", "")
+	jety.SetDefault("azureblob.container_name", "")
 }
 
-// athensEnvOr returns the Athens env var value if set, otherwise the fallback.
-func athensEnvOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
+// applyAthensOverrides applies Athens-compatible env vars with highest priority.
+// These override TOGA_ env vars and config file values for drop-in compatibility.
+func applyAthensOverrides() {
+	overrides := map[string]string{
+		"port":                     "ATHENS_PORT",
+		"unix_socket":              "ATHENS_UNIX_SOCKET",
+		"tls_cert":                 "ATHENS_TLSCERT_FILE",
+		"tls_key":                  "ATHENS_TLSKEY_FILE",
+		"storage_type":             "ATHENS_STORAGE_TYPE",
+		"go_binary":                "GO_BINARY_PATH",
+		"go_mod_cache":             "GOMODCACHE",
+		"go_proxy":                 "GOPROXY",
+		"go_private":               "GOPRIVATE",
+		"go_noproxy":               "GONOPROXY",
+		"go_sumdb":                 "GOSUMDB",
+		"go_nosumdb":               "GONOSUMDB",
+		"timeout":                  "ATHENS_TIMEOUT",
+		"shutdown_timeout":         "ATHENS_SHUTDOWN_TIMEOUT",
+		"log_level":                "ATHENS_LOG_LEVEL",
+		"path_prefix":              "ATHENS_PATH_PREFIX",
+		"basic_auth_user":          "BASIC_AUTH_USER",
+		"basic_auth_pass":          "BASIC_AUTH_PASS",
+		"network_mode":             "ATHENS_NETWORK_MODE",
+		"sum_dbs":                  "ATHENS_SUM_DBS",
+		"disk.root_path":           "ATHENS_DISK_STORAGE_ROOT",
+		"s3.region":                "AWS_REGION",
+		"s3.key":                   "AWS_ACCESS_KEY_ID",
+		"s3.secret":                "AWS_SECRET_ACCESS_KEY",
+		"s3.token":                 "AWS_SESSION_TOKEN",
+		"s3.bucket":                "ATHENS_S3_BUCKET_NAME",
+		"s3.endpoint":              "AWS_ENDPOINT",
+		"s3.force_path_style":      "AWS_FORCE_PATH_STYLE",
+		"minio.endpoint":           "ATHENS_MINIO_ENDPOINT",
+		"minio.key":                "ATHENS_MINIO_ACCESS_KEY_ID",
+		"minio.secret":             "ATHENS_MINIO_SECRET_ACCESS_KEY",
+		"minio.bucket":             "ATHENS_MINIO_BUCKET_NAME",
+		"minio.region":             "ATHENS_MINIO_REGION",
+		"minio.enable_ssl":         "ATHENS_MINIO_USE_SSL",
+		"gcs.bucket":               "ATHENS_GCP_BUCKET",
+		"gcs.project_id":           "ATHENS_GCP_PROJECT_ID",
+		"gcs.credentials_file":     "ATHENS_GCP_CREDENTIALS_FILE",
+		"azureblob.account_name":   "ATHENS_AZURE_ACCOUNT_NAME",
+		"azureblob.account_key":    "ATHENS_AZURE_ACCOUNT_KEY",
+		"azureblob.container_name": "ATHENS_AZURE_CONTAINER_NAME",
 	}
-	return fallback
+
+	for key, envVar := range overrides {
+		if v := os.Getenv(envVar); v != "" {
+			jety.Set(key, v)
+		}
+	}
 }
 
 // Load builds a Config from JETY state. Call Init first.
