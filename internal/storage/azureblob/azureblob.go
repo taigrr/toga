@@ -24,7 +24,7 @@ type Cacher struct {
 }
 
 // New creates an Azure Blob Storage-backed Cacher.
-func New(ctx context.Context, cfg Config) (*Cacher, error) {
+func New(_ context.Context, cfg Config) (*Cacher, error) {
 	cred, err := azblob.NewSharedKeyCredential(cfg.AccountName, cfg.AccountKey)
 	if err != nil {
 		return nil, err

@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	defaultRegion    = "us-east-1"
-	s3EndpointFormat = "s3.%s.amazonaws.com"
-	schemeHTTPS      = "https://"
-	schemeHTTP       = "http://"
+	defaultRegion = "us-east-1"
+	schemeHTTPS   = "https://"
+	schemeHTTP    = "http://"
 
 	errNoSuchKey    = "NoSuchKey"
 	errNoSuchBucket = "NoSuchBucket"
