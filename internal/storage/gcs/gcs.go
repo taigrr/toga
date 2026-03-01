@@ -13,9 +13,9 @@ import (
 
 // Config holds GCS connection parameters.
 type Config struct {
-	Bucket    string
-	ProjectID string
-	JSONKey   string
+	Bucket          string
+	ProjectID       string
+	CredentialsFile string
 }
 
 // Cacher implements goproxy.Cacher using GCS.
@@ -27,8 +27,8 @@ type Cacher struct {
 // New creates a GCS-backed Cacher.
 func New(ctx context.Context, cfg Config) (*Cacher, error) {
 	var opts []option.ClientOption
-	if cfg.JSONKey != "" {
-		opts = append(opts, option.WithCredentialsJSON([]byte(cfg.JSONKey)))
+	if cfg.CredentialsFile != "" {
+		opts = append(opts, option.WithAuthCredentialsFile(option.ServiceAccount, cfg.CredentialsFile))
 	}
 
 	client, err := storage.NewClient(ctx, opts...)
@@ -41,24 +41,24 @@ func New(ctx context.Context, cfg Config) (*Cacher, error) {
 
 // Get retrieves a cached module file.
 func (c *Cacher) Get(ctx context.Context, name string) (io.ReadCloser, error) {
-	r, err := c.client.Bucket(c.bucket).Object(name).NewReader(ctx)
+	reader, err := c.client.Bucket(c.bucket).Object(name).NewReader(ctx)
 	if err != nil {
 		if errors.Is(err, storage.ErrObjectNotExist) {
 			return nil, fs.ErrNotExist
 		}
 		return nil, err
 	}
-	return r, nil
+	return reader, nil
 }
 
 // Put stores a module file in GCS.
 func (c *Cacher) Put(ctx context.Context, name string, content io.ReadSeeker) error {
-	w := c.client.Bucket(c.bucket).Object(name).NewWriter(ctx)
-	if _, err := io.Copy(w, content); err != nil {
-		w.Close()
+	writer := c.client.Bucket(c.bucket).Object(name).NewWriter(ctx)
+	if _, err := io.Copy(writer, content); err != nil {
+		writer.Close()
 		return err
 	}
-	return w.Close()
+	return writer.Close()
 }
 
 // Close releases GCS client resources.

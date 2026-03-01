@@ -79,9 +79,9 @@ type MinioConfig struct {
 
 // GCSConfig holds configuration for the Google Cloud Storage backend.
 type GCSConfig struct {
-	Bucket    string
-	ProjectID string
-	JSONKey   string
+	Bucket          string
+	ProjectID       string
+	CredentialsFile string
 }
 
 // AzureBlobConfig holds configuration for the Azure Blob Storage backend.
@@ -144,9 +144,9 @@ func Load() *Config {
 
 	// GCS
 	cfg.GCS = GCSConfig{
-		Bucket:    envOr("ATHENS_GCP_BUCKET", "TOGA_GCS_BUCKET", ""),
-		ProjectID: envOr("ATHENS_GCP_PROJECT_ID", "TOGA_GCS_PROJECT", ""),
-		JSONKey:   envOr("ATHENS_GCP_JSON_KEY", "TOGA_GCS_JSON_KEY", ""),
+		Bucket:          envOr("ATHENS_GCP_BUCKET", "TOGA_GCS_BUCKET", ""),
+		ProjectID:       envOr("ATHENS_GCP_PROJECT_ID", "TOGA_GCS_PROJECT", ""),
+		CredentialsFile: envOr("ATHENS_GCP_CREDENTIALS_FILE", "TOGA_GCS_CREDENTIALS_FILE", ""),
 	}
 
 	// Azure Blob
