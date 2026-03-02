@@ -44,6 +44,7 @@ dockers_v2:
     tags:
       - "{{ .Version }}"
       - latest
+    dockerfile: Dockerfile.goreleaser
     labels:
       "org.opencontainers.image.title": "{{ .ProjectName }}"
       "org.opencontainers.image.version": "{{ .Version }}"
