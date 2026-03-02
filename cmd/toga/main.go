@@ -18,9 +18,15 @@ import (
 	"syscall"
 	"time"
 
+	cloudstorage "cloud.google.com/go/storage"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/charmbracelet/fang"
 	"github.com/goproxy/goproxy"
+	"github.com/minio/minio-go/v7"
 	"github.com/spf13/cobra"
+	"github.com/taigrr/log-socket/v2/browser"
+	logslog "github.com/taigrr/log-socket/v2/slog"
+	"github.com/taigrr/log-socket/v2/ws"
 	"github.com/taigrr/toga/internal/config"
 	"github.com/taigrr/toga/internal/storage/azureblob"
 	"github.com/taigrr/toga/internal/storage/disk"
@@ -28,6 +34,7 @@ import (
 	"github.com/taigrr/toga/internal/storage/memory"
 	miniocacher "github.com/taigrr/toga/internal/storage/minio"
 	s3cacher "github.com/taigrr/toga/internal/storage/s3"
+	"github.com/taigrr/toga/internal/web"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -61,7 +68,7 @@ func main() {
 func runServe(cmd *cobra.Command, _ []string) error {
 	cfg := config.Load()
 
-	logger := newLogger(cfg.LogLevel, cfg.LogFormat)
+	logger := newLogger(cfg)
 
 	ctx, cancel := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -131,7 +138,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		proxy.Cacher = cacher
 	}
 
-	handler := buildHandler(proxy, cfg, logger)
+	handler := buildHandler(proxy, fetcher, cacher, cfg, logger)
 
 	srv := &http.Server{
 		Handler:           handler,
@@ -194,23 +201,78 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 const readHeaderTimeout = 5 * time.Second
 
-func newLogger(level, format string) *slog.Logger {
-	var logLevel slog.Level
+func parseSlogLevel(level string) slog.Level {
 	switch level {
 	case "debug":
-		logLevel = slog.LevelDebug
+		return slog.LevelDebug
 	case "warn":
-		logLevel = slog.LevelWarn
+		return slog.LevelWarn
 	case "error":
-		logLevel = slog.LevelError
+		return slog.LevelError
 	default:
-		logLevel = slog.LevelInfo
+		return slog.LevelInfo
 	}
+}
+
+func newLogger(cfg *config.Config) *slog.Logger {
+	logLevel := parseSlogLevel(cfg.LogLevel)
 	opts := &slog.HandlerOptions{Level: logLevel}
-	if format == "plain" || format == "text" {
-		return slog.New(slog.NewTextHandler(os.Stderr, opts))
+
+	var stderrHandler slog.Handler
+	if cfg.LogFormat == "plain" || cfg.LogFormat == "text" {
+		stderrHandler = slog.NewTextHandler(os.Stderr, opts)
+	} else {
+		stderrHandler = slog.NewJSONHandler(os.Stderr, opts)
 	}
-	return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+
+	// Fan out to both stderr and log-socket.
+	lsHandler := logslog.NewHandler(
+		logslog.WithNamespace("toga"),
+		logslog.WithLevel(logLevel),
+	)
+	return slog.New(&multiHandler{handlers: []slog.Handler{stderrHandler, lsHandler}})
+}
+
+// multiHandler fans out slog records to multiple handlers.
+type multiHandler struct {
+	handlers []slog.Handler
+}
+
+func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, h := range m.handlers {
+		if h.Enabled(ctx, level) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	var firstErr error
+	for _, h := range m.handlers {
+		if h.Enabled(ctx, r.Level) {
+			if err := h.Handle(ctx, r); err != nil && firstErr == nil {
+				firstErr = err
+			}
+		}
+	}
+	return firstErr
+}
+
+func (m *multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	handlers := make([]slog.Handler, len(m.handlers))
+	for i, h := range m.handlers {
+		handlers[i] = h.WithAttrs(attrs)
+	}
+	return &multiHandler{handlers: handlers}
+}
+
+func (m *multiHandler) WithGroup(name string) slog.Handler {
+	handlers := make([]slog.Handler, len(m.handlers))
+	for i, h := range m.handlers {
+		handlers[i] = h.WithGroup(name)
+	}
+	return &multiHandler{handlers: handlers}
 }
 
 func listen(cfg *config.Config) (net.Listener, error) {
@@ -224,7 +286,7 @@ func listen(cfg *config.Config) (net.Listener, error) {
 	return net.Listen("tcp", cfg.Port)
 }
 
-func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logger) http.Handler {
+func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher goproxy.Cacher, cfg *config.Config, logger *slog.Logger) http.Handler {
 	var handler http.Handler = proxy
 
 	// Apply protocol worker semaphore.
@@ -254,6 +316,58 @@ func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logge
 	} else {
 		mux.HandleFunc("/robots.txt", defaultRobotsHandler)
 	}
+
+	// Log-socket viewer + WebSocket
+	logPath := cfg.LogSocketPath
+	if logPath == "" {
+		logPath = "/logs"
+	}
+	mux.HandleFunc(logPath+"/", browser.LogSocketViewHandler)
+	mux.HandleFunc(logPath+"/ws", ws.LogSocketHandler)
+
+	// Web UI for module browsing — pick the right lister for the backend.
+	var lister web.Lister
+	type minioBackend interface {
+		MinioClient() *minio.Client
+		BucketName() string
+	}
+	type gcsBackend interface {
+		StorageClient() *cloudstorage.Client
+		BucketName() string
+	}
+	type azureBackend interface {
+		AzblobClient() *azblob.Client
+		ContainerName() string
+	}
+	switch b := cacher.(type) {
+	case minioBackend:
+		lister = &web.ObjectStoreLister{
+			Client: b.MinioClient(),
+			Bucket: b.BucketName(),
+		}
+	case gcsBackend:
+		lister = &web.GCSLister{
+			Client: b.StorageClient(),
+			Bucket: b.BucketName(),
+		}
+	case azureBackend:
+		lister = &web.AzureLister{
+			Client:    b.AzblobClient(),
+			Container: b.ContainerName(),
+		}
+	default:
+		lister = &web.DiskLister{Root: cfg.Disk.RootPath}
+	}
+
+	uiHandler := &web.Handler{
+		Lister:  lister,
+		Fetcher: fetcher,
+		Cacher:  cacher,
+		Logger:  logger,
+		Prefix:  "/-/ui",
+	}
+	mux.Handle("/-/ui/", uiHandler)
+	mux.Handle("/-/ui", http.RedirectHandler("/-/ui/", http.StatusMovedPermanently))
 
 	// Homepage
 	if cfg.HomeTemplatePath != "" {
@@ -289,15 +403,19 @@ func robotsHandler(path string, logger *slog.Logger) http.HandlerFunc {
 }
 
 func homeOrProxy(tmplPath string, proxyHandler http.Handler, logger *slog.Logger) http.HandlerFunc {
+	// Parse template once at startup rather than per-request.
+	tmpl, parseErr := template.ParseFiles(tmplPath)
+	if parseErr != nil {
+		logger.Warn("failed to parse home template", "path", tmplPath, "error", parseErr)
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Only serve homepage at exact root path.
 		if r.URL.Path != "/" {
 			proxyHandler.ServeHTTP(w, r)
 			return
 		}
-		tmpl, err := template.ParseFiles(tmplPath)
-		if err != nil {
-			logger.Warn("failed to parse home template", "path", tmplPath, "error", err)
+		if tmpl == nil {
 			proxyHandler.ServeHTTP(w, r)
 			return
 		}
@@ -312,9 +430,13 @@ func homeOrProxy(tmplPath string, proxyHandler http.Handler, logger *slog.Logger
 func maxConcurrency(next http.Handler, n int) http.Handler {
 	sem := make(chan struct{}, n)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sem <- struct{}{}
-		defer func() { <-sem }()
-		next.ServeHTTP(w, r)
+		select {
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
+			next.ServeHTTP(w, r)
+		case <-r.Context().Done():
+			http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		}
 	})
 }
 
@@ -388,6 +510,8 @@ func validateStorage(cfg *config.Config) error {
 		if cfg.AzureBlob.AccountName == "" || cfg.AzureBlob.ContainerName == "" {
 			return fmt.Errorf("azureblob storage requires account_name and container_name")
 		}
+	default:
+		return fmt.Errorf("unknown storage type: %s", cfg.StorageType)
 	}
 	return nil
 }

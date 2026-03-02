@@ -87,3 +87,9 @@ var _ interface {
 	Get(context.Context, string) (io.ReadCloser, error)
 	Put(context.Context, string, io.ReadSeeker) error
 } = (*Cacher)(nil)
+
+// MinioClient returns the underlying minio client for direct API access.
+func (c *Cacher) MinioClient() *minio.Client { return c.client }
+
+// BucketName returns the MinIO bucket name.
+func (c *Cacher) BucketName() string { return c.bucket }

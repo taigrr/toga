@@ -187,8 +187,8 @@ func TestValidateStorageMemory(t *testing.T) {
 
 func TestValidateStorageUnknownType(t *testing.T) {
 	cfg := &config.Config{StorageType: "unknown"}
-	if err := validateStorage(cfg); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err := validateStorage(cfg); err == nil {
+		t.Error("expected error for unknown storage type")
 	}
 }
 
@@ -241,7 +241,7 @@ func TestNewCacherDiskMissingRootPath(t *testing.T) {
 func TestBuildHandlerHealthz(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
@@ -255,7 +255,7 @@ func TestBuildHandlerHealthz(t *testing.T) {
 func TestBuildHandlerReadyz(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	w := httptest.NewRecorder()
@@ -269,7 +269,7 @@ func TestBuildHandlerReadyz(t *testing.T) {
 func TestBuildHandlerDefaultRobots(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/robots.txt", nil)
 	w := httptest.NewRecorder()
@@ -295,7 +295,7 @@ func TestBuildHandlerCustomRobots(t *testing.T) {
 
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{RobotsFile: robotsPath}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/robots.txt", nil)
 	w := httptest.NewRecorder()
@@ -312,7 +312,7 @@ func TestBuildHandlerCustomRobots(t *testing.T) {
 func TestBuildHandlerCustomRobotsMissing(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{RobotsFile: "/nonexistent/robots.txt"}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/robots.txt", nil)
 	w := httptest.NewRecorder()
@@ -335,7 +335,7 @@ func TestBuildHandlerHomepage(t *testing.T) {
 
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{HomeTemplatePath: tmplPath}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -361,7 +361,7 @@ func TestBuildHandlerHomepageOnlyAtRoot(t *testing.T) {
 
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{HomeTemplatePath: tmplPath}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/some/module/@v/list", nil)
 	w := httptest.NewRecorder()
@@ -375,7 +375,7 @@ func TestBuildHandlerHomepageOnlyAtRoot(t *testing.T) {
 func TestBuildHandlerHomepageBadTemplate(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{HomeTemplatePath: "/nonexistent/template.html"}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -389,7 +389,7 @@ func TestBuildHandlerHomepageBadTemplate(t *testing.T) {
 func TestBuildHandlerWithBasicAuth(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{BasicAuthUser: "user", BasicAuthPass: "pass"}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	// Healthz is a separate mux route, not behind auth.
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
@@ -404,7 +404,7 @@ func TestBuildHandlerWithBasicAuth(t *testing.T) {
 func TestBuildHandlerPathPrefix(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{PathPrefix: "/proxy"}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
@@ -470,7 +470,7 @@ func TestNewLoggerLevels(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.level, func(t *testing.T) {
-			logger := newLogger(tt.level, "json")
+			logger := newLogger(&config.Config{LogLevel: tt.level, LogFormat: "json"})
 			if logger == nil {
 				t.Fatal("expected non-nil logger")
 			}
@@ -483,7 +483,7 @@ func TestNewLoggerLevels(t *testing.T) {
 
 func TestNewLoggerFormats(t *testing.T) {
 	for _, format := range []string{"json", "plain", "text", ""} {
-		logger := newLogger("info", format)
+		logger := newLogger(&config.Config{LogLevel: "info", LogFormat: format})
 		if logger == nil {
 			t.Errorf("expected non-nil logger for format %q", format)
 		}
@@ -729,7 +729,7 @@ func TestFullHandlerStack(t *testing.T) {
 		RobotsFile:       robotsPath,
 		ProtocolWorkers:  5,
 	}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	tests := []struct {
 		name   string
@@ -764,7 +764,6 @@ func TestFullHandlerStack(t *testing.T) {
 	}
 }
 
-
 // --- End-to-end server test ---
 
 func TestServerStartAndShutdown(t *testing.T) {
@@ -786,7 +785,7 @@ func TestServerStartAndShutdown(t *testing.T) {
 		Logger: slog.Default(),
 	}
 
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 	srv := &http.Server{
 		Handler:           handler,
 		ReadHeaderTimeout: readHeaderTimeout,
@@ -827,7 +826,7 @@ func TestHomepageTemplateExecution(t *testing.T) {
 
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{HomeTemplatePath: tmplPath}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -851,7 +850,7 @@ func BenchmarkHealthHandler(b *testing.B) {
 func BenchmarkBuildHandlerRouting(b *testing.B) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{}
-	handler := buildHandler(proxy, cfg, slog.Default())
+	handler := buildHandler(proxy, nil, nil, cfg, slog.Default())
 
 	paths := []string{"/healthz", "/readyz", "/robots.txt"}
 

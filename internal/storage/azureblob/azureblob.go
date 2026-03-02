@@ -66,3 +66,9 @@ var _ interface {
 	Get(context.Context, string) (io.ReadCloser, error)
 	Put(context.Context, string, io.ReadSeeker) error
 } = (*Cacher)(nil)
+
+// AzblobClient returns the underlying Azure Blob client.
+func (c *Cacher) AzblobClient() *azblob.Client { return c.client }
+
+// ContainerName returns the Azure container name.
+func (c *Cacher) ContainerName() string { return c.container }

@@ -1,0 +1,338 @@
+package web
+
+import (
+	"fmt"
+	"net/url"
+	"strings"
+)
+
+func formatSize(bytes int64) string {
+	switch {
+	case bytes >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(1<<20))
+	case bytes >= 1<<10:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(1<<10))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
+func totalSize(m Module) string {
+	var total int64
+	for _, v := range m.Versions {
+		total += v.Size
+	}
+	return formatSize(total)
+}
+
+func nextPageURL(prefix, cursor, query string) string {
+	u := prefix + "/modules?cursor=" + url.QueryEscape(cursor)
+	if query != "" {
+		u += "&q=" + url.QueryEscape(query)
+	}
+	return u
+}
+
+templ indexPage(prefix string) {
+	<!DOCTYPE html>
+	<html lang="en" data-theme="dark">
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>Toga - Module Proxy</title>
+		<link rel="stylesheet" href={ prefix + "/static/pico.min.css" }/>
+		<link rel="stylesheet" href={ prefix + "/static/github-dark.min.css" }/>
+		<script src={ prefix + "/static/htmx.min.js" }></script>
+		<script defer src={ prefix + "/static/alpine.min.js" }></script>
+		<script src={ prefix + "/static/highlight.min.js" }></script>
+		<script src={ prefix + "/static/highlight-go.min.js" }></script>
+		<style>
+			pre code { border-radius: var(--pico-border-radius); font-size: 0.85rem; }
+			.version-badge {
+				display: inline-block;
+				padding: 0.1rem 0.5rem;
+				background: var(--pico-primary-background);
+				color: var(--pico-primary-inverse);
+				border-radius: 1rem;
+				font-size: 0.75rem;
+				margin-right: 0.25rem;
+			}
+			.file-size { color: var(--pico-muted-color); font-size: 0.85rem; }
+			.module-path { cursor: pointer; }
+			.tab-bar { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; }
+			.tab-bar button {
+				background: none;
+				border: none;
+				border-bottom: 2px solid transparent;
+				color: var(--pico-muted-color);
+				padding: 0.5rem 1rem;
+				cursor: pointer;
+				font-size: 0.9rem;
+			}
+			.tab-bar button:hover { color: var(--pico-color); }
+			.tab-bar button.active { color: var(--pico-primary); border-bottom-color: var(--pico-primary); }
+			.toolbar { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+			.toolbar input[type="search"] { flex: 1; min-width: 200px; margin-bottom: 0; }
+			table input[type="checkbox"] { margin-bottom: 0; }
+			.empty-state { text-align: center; padding: 3rem 1rem; color: var(--pico-muted-color); }
+			#module-detail { margin-top: 1rem; }
+			#file-viewer { margin-top: 1rem; }
+			.fetch-form { display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap; }
+			.fetch-form input { margin-bottom: 0; }
+			.header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+			.header-bar h1 { margin-bottom: 0; }
+			.total-count { color: var(--pico-muted-color); font-size: 0.85rem; margin-bottom: 0.5rem; }
+		</style>
+	</head>
+	<body>
+		<main class="container" data-ui-prefix={ prefix }>
+			<div class="header-bar">
+				<h1 style="display:flex;align-items:center;gap:0.5rem"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none" width="36" height="36"><defs><linearGradient id="tg" x1="0.3" y1="0" x2="0.7" y2="1"><stop offset="0%" stop-color="#818CF8"/><stop offset="100%" stop-color="#6366F1"/></linearGradient></defs><path d="M96 190 L256 70 L416 190" fill="url(#tg)"/><rect x="80" y="190" width="352" height="28" rx="4" fill="url(#tg)"/><rect x="108" y="222" width="40" height="190" rx="4" fill="url(#tg)"/><rect x="200" y="222" width="40" height="190" rx="4" fill="url(#tg)"/><rect x="272" y="222" width="40" height="190" rx="4" fill="url(#tg)"/><rect x="364" y="222" width="40" height="190" rx="4" fill="url(#tg)"/><rect x="80" y="412" width="352" height="28" rx="4" fill="url(#tg)"/></svg> Toga</h1>
+				<a href="/logs/">📋 Live Logs</a>
+			</div>
+			<div class="tab-bar">
+				<button class="active" onclick="switchTab(this, 'modules')">Modules</button>
+				<button onclick="switchTab(this, 'fetch')">Fetch Package</button>
+			</div>
+			<div id="tab-modules">
+				<div class="toolbar" x-data="{ hasSelection: false }">
+					<input
+						type="search"
+						name="q"
+						placeholder="Filter modules..."
+						hx-get={ prefix + "/modules" }
+						hx-trigger="input changed delay:300ms, search"
+						hx-target="#module-list"
+						hx-include="this"
+					/>
+					<button
+						class="outline secondary"
+						x-show="hasSelection"
+						x-cloak
+						onclick="deleteSelected()"
+					>
+						Delete Selected
+					</button>
+				</div>
+				<div id="module-list"
+					hx-get={ prefix + "/modules" }
+					hx-trigger="load"
+				>
+					<p aria-busy="true">Loading modules…</p>
+				</div>
+				<div id="module-detail"></div>
+			</div>
+			<div id="tab-fetch" style="display:none">
+				<article>
+					<header><strong>Fetch a Go Module</strong></header>
+					<form class="fetch-form"
+						hx-post={ prefix + "/fetch" }
+						hx-target="#fetch-result"
+						hx-swap="innerHTML"
+					>
+						<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
+						<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
+						<button type="submit">Fetch</button>
+					</form>
+					<div id="fetch-result"></div>
+				</article>
+			</div>
+		</main>
+		<script>
+			var uiPrefix = document.querySelector('[data-ui-prefix]')?.dataset.uiPrefix || '/-/ui';
+			function switchTab(el, tab) {
+				document.querySelectorAll('.tab-bar button').forEach(t => t.classList.remove('active'));
+				el.classList.add('active');
+				document.getElementById('tab-modules').style.display = tab === 'modules' ? '' : 'none';
+				document.getElementById('tab-fetch').style.display = tab === 'fetch' ? '' : 'none';
+			}
+			function deleteSelected() {
+				const checked = document.querySelectorAll('input[name="selected"]:checked');
+				if (checked.length === 0) return;
+				if (!confirm('Delete ' + checked.length + ' selected module(s)?')) return;
+
+				const form = document.createElement('form');
+				form.method = 'POST';
+				form.action = uiPrefix + '/delete';
+				checked.forEach(cb => {
+					const input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = 'selected';
+					input.value = cb.value;
+					form.appendChild(input);
+				});
+				document.body.appendChild(form);
+				htmx.ajax('POST', uiPrefix + '/delete', {
+					source: form,
+					target: '#module-list'
+				}).then(() => form.remove());
+			}
+			document.body.addEventListener('htmx:afterSwap', function() {
+				document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+			});
+		</script>
+	</body>
+	</html>
+}
+
+// moduleListFragment renders the full table with header (first page load or new search).
+templ moduleListFragment(page *ModulePage, query string, prefix string) {
+	if len(page.Modules) == 0 && page.Total == 0 {
+		<div class="empty-state">
+			<h3>No modules cached</h3>
+			<p>Fetch a package to get started, or use toga as your GOPROXY.</p>
+		</div>
+	} else if len(page.Modules) == 0 {
+		<div class="empty-state">
+			<h3>No matching modules</h3>
+			<p>Try a different filter.</p>
+		</div>
+	} else {
+		if page.Total > 0 {
+			<p class="total-count">{ fmt.Sprintf("%d modules", page.Total) }</p>
+		}
+		<form id="module-form" x-data="{ allChecked: false, toggleAll() { document.querySelectorAll('input[name=selected]').forEach(cb => cb.checked = this.allChecked); } }">
+			<table>
+				<thead>
+					<tr>
+						<th style="width:2rem"><input type="checkbox" x-model="allChecked" @change="toggleAll()"/></th>
+						<th>Module</th>
+						<th>Versions</th>
+						<th>Latest</th>
+						<th>Size</th>
+					</tr>
+				</thead>
+				<tbody id="module-rows">
+					for _, m := range page.Modules {
+						@moduleRow(m, prefix)
+					}
+					if page.NextCursor != "" {
+						@loadMoreSentinel(page.NextCursor, query, prefix)
+					}
+				</tbody>
+			</table>
+		</form>
+	}
+}
+
+// moduleRowsFragment renders just additional rows (for "load more" / infinite scroll).
+templ moduleRowsFragment(page *ModulePage, query string, prefix string) {
+	for _, m := range page.Modules {
+		@moduleRow(m, prefix)
+	}
+	if page.NextCursor != "" {
+		@loadMoreSentinel(page.NextCursor, query, prefix)
+	}
+}
+
+templ moduleRow(m Module, prefix string) {
+	<tr>
+		<td><input type="checkbox" name="selected" value={ m.Path + "@" }/></td>
+		<td>
+			<a class="module-path"
+				hx-get={ prefix + "/module?path=" + m.Path }
+				hx-target="#module-detail"
+				hx-swap="innerHTML"
+			>
+				{ m.Path }
+			</a>
+		</td>
+		<td>{ fmt.Sprintf("%d", len(m.Versions)) }</td>
+		<td>
+			if len(m.Versions) > 0 {
+				<span class="version-badge">{ m.Versions[len(m.Versions)-1].Version }</span>
+			}
+		</td>
+		<td class="file-size">{ totalSize(m) }</td>
+	</tr>
+}
+
+// loadMoreSentinel is an invisible row that triggers loading the next page
+// when it scrolls into view.
+templ loadMoreSentinel(cursor, query, prefix string) {
+	<tr
+		hx-get={ nextPageURL(prefix, cursor, query) }
+		hx-trigger="revealed"
+		hx-swap="outerHTML"
+	>
+		<td colspan="5" style="text-align:center">
+			<p aria-busy="true" style="margin:0;font-size:0.85rem">Loading more…</p>
+		</td>
+	</tr>
+}
+
+templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
+	<article>
+		<header>
+			<div style="display:flex;justify-content:space-between;align-items:center">
+				<strong>{ modPath }</strong>
+				<button class="outline secondary"
+					hx-post={ prefix + "/delete" }
+					hx-vals={ fmt.Sprintf(`{"module":"%s","version":""}`, modPath) }
+					hx-target="#module-list"
+					hx-swap="innerHTML"
+					hx-confirm="Delete all cached versions of this module?"
+					hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
+				>
+					Delete Module
+				</button>
+			</div>
+		</header>
+		if len(files) == 0 {
+			<p class="file-size">No cached files found.</p>
+		} else {
+			<table>
+				<tbody>
+					for _, f := range files {
+						<tr>
+							<td>
+								<a
+									hx-get={ prefix + "/file?name=" + modPath + "/@v/" + f.Name }
+									hx-target="#file-viewer"
+									hx-swap="innerHTML"
+									style="cursor:pointer"
+								>
+									{ f.Name }
+								</a>
+							</td>
+							<td class="file-size">{ formatSize(f.Size) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		}
+		<div id="file-viewer"></div>
+	</article>
+}
+
+templ fileViewFragment(name string, content string, lang string, truncated bool) {
+	<div>
+		<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+			<small class="file-size">{ name }</small>
+			if truncated {
+				<small style="color:var(--pico-del-color)">Truncated to 1 MB</small>
+			}
+		</div>
+		if strings.HasSuffix(name, ".zip") {
+			<p class="file-size">Binary file — download via proxy endpoint.</p>
+		} else {
+			<pre><code class={ "language-" + lang }>{ content }</code></pre>
+		}
+	</div>
+}
+
+templ fetchResultFragment(modPath string, err error) {
+	if err != nil {
+		<p role="alert" style="color:var(--pico-del-color)">
+			Failed to fetch
+			if modPath != "" {
+				<strong>{ modPath }</strong>:
+			}
+			{ err.Error() }
+		</p>
+	} else {
+		<p role="alert" style="color:var(--pico-ins-color)">
+			Successfully fetched <strong>{ modPath }</strong>.
+		</p>
+	}
+}
