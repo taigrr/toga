@@ -203,10 +203,14 @@ templ indexPage(prefix string) {
 					target: '#module-list'
 				}).then(() => form.remove());
 			}
-			document.body.addEventListener('htmx:afterSwap', function() {
+			document.body.addEventListener('htmx:afterSwap', function(evt) {
 				document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+				var reset = evt.detail.elt.querySelector('[x-init*="fetching"]');
+				if (reset) {
+					var form = document.querySelector('.fetch-form');
+					if (form && form._x_dataStack) form._x_dataStack[0].fetching = false;
+				}
 			});
-
 		</script>
 		</body>
 	</html>
