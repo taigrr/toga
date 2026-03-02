@@ -248,14 +248,15 @@ func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (m *multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	var firstErr error
 	for _, h := range m.handlers {
 		if h.Enabled(ctx, r.Level) {
-			if err := h.Handle(ctx, r); err != nil {
-				return err
+			if err := h.Handle(ctx, r); err != nil && firstErr == nil {
+				firstErr = err
 			}
 		}
 	}
-	return nil
+	return firstErr
 }
 
 func (m *multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
@@ -429,9 +430,13 @@ func homeOrProxy(tmplPath string, proxyHandler http.Handler, logger *slog.Logger
 func maxConcurrency(next http.Handler, n int) http.Handler {
 	sem := make(chan struct{}, n)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sem <- struct{}{}
-		defer func() { <-sem }()
-		next.ServeHTTP(w, r)
+		select {
+		case sem <- struct{}{}:
+			defer func() { <-sem }()
+			next.ServeHTTP(w, r)
+		case <-r.Context().Done():
+			http.Error(w, "service unavailable", http.StatusServiceUnavailable)
+		}
 	})
 }
 

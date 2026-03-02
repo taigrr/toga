@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"os"
@@ -221,6 +222,9 @@ func (d *DiskLister) ListFiles(_ context.Context, modulePath string) ([]FileEntr
 
 // GetFile returns a cached file by its cache-relative name.
 func (d *DiskLister) GetFile(_ context.Context, name string) (io.ReadCloser, error) {
+	if strings.Contains(name, "..") || strings.HasPrefix(name, "/") {
+		return nil, fmt.Errorf("invalid file path: %s", name)
+	}
 	return os.Open(filepath.Join(d.Root, filepath.FromSlash(name)))
 }
 
