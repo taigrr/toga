@@ -221,10 +221,6 @@ func newLogger(cfg *config.Config) *slog.Logger {
 		stderrHandler = slog.NewJSONHandler(os.Stderr, opts)
 	}
 
-	if !cfg.EnableLogSocket {
-		return slog.New(stderrHandler)
-	}
-
 	// Fan out to both stderr and log-socket.
 	lsHandler := logslog.NewHandler(
 		logslog.WithNamespace("toga"),
@@ -317,14 +313,12 @@ func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logge
 	}
 
 	// Log-socket viewer + WebSocket
-	if cfg.EnableLogSocket {
-		path := cfg.LogSocketPath
-		if path == "" {
-			path = "/logs"
-		}
-		mux.HandleFunc(path+"/", browser.LogSocketViewHandler)
-		mux.HandleFunc(path+"/ws", ws.LogSocketHandler)
+	logPath := cfg.LogSocketPath
+	if logPath == "" {
+		logPath = "/logs"
 	}
+	mux.HandleFunc(logPath+"/", browser.LogSocketViewHandler)
+	mux.HandleFunc(logPath+"/ws", ws.LogSocketHandler)
 
 	// Homepage
 	if cfg.HomeTemplatePath != "" {

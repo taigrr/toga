@@ -77,9 +77,8 @@ type Config struct {
 	TraceEndpoint   string
 	TraceSampleRate float64
 
-	// Log-socket: WebSocket log streaming
-	EnableLogSocket bool
-	LogSocketPath   string // URL path prefix, default "/logs"
+	// Log-socket: URL path prefix for WebSocket log viewer
+	LogSocketPath string
 }
 
 // DiskConfig holds configuration for the filesystem storage backend.
@@ -201,7 +200,6 @@ func setDefaults() {
 	cm.SetDefault("pprof_port", ":3001")
 
 	// Log-socket
-	cm.SetDefault("enable_log_socket", "true")
 	cm.SetDefault("log_socket_path", "/logs")
 
 	// Tracing
@@ -281,7 +279,6 @@ func Load() *Config {
 		RobotsFile:       cm.GetString("robots_file"),
 		EnablePprof:      cm.GetBool("enable_pprof"),
 		PprofPort:        cm.GetString("pprof_port"),
-		EnableLogSocket:  cm.GetBool("enable_log_socket"),
 		LogSocketPath:    cm.GetString("log_socket_path"),
 		TraceExporter:    strings.ToLower(cm.GetString("trace_exporter")),
 		TraceEndpoint:    cm.GetString("trace_endpoint"),
