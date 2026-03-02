@@ -18,6 +18,9 @@ builds:
       - arm
     goarm:
       - "7"
+    ignore:
+      - goos: windows
+        goarch: arm
     ldflags:
       - -s -w -X main.version={{.Version}}
 
