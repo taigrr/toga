@@ -764,7 +764,6 @@ func TestFullHandlerStack(t *testing.T) {
 	}
 }
 
-
 // --- End-to-end server test ---
 
 func TestServerStartAndShutdown(t *testing.T) {
