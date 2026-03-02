@@ -147,6 +147,7 @@ templ indexPage(prefix string) {
 							hx-target="#fetch-result"
 							hx-swap="innerHTML"
 							x-data="{ fetching: false }"
+							@htmx:after-request.camel="if(!$event.detail.successful) fetching=false"
 						>
 							<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
 							<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
