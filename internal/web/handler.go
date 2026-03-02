@@ -29,6 +29,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	switch {
+	case r.Method == http.MethodGet && strings.HasPrefix(sub, "/static/"):
+		http.StripPrefix(h.Prefix+"/static/", http.FileServer(StaticFS())).ServeHTTP(w, r)
 	case r.Method == http.MethodGet && (sub == "" || sub == "/"):
 		h.handleIndex(w, r)
 	case r.Method == http.MethodGet && sub == "/modules":

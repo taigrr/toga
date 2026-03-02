@@ -18,205 +18,63 @@ func formatSize(bytes int64) string {
 
 templ indexPage(prefix string) {
 	<!DOCTYPE html>
-	<html lang="en">
+	<html lang="en" data-theme="dark">
 	<head>
 		<meta charset="utf-8"/>
 		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<title>Toga - Module Proxy</title>
-		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
-		<script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css"/>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
-		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/go.min.js"></script>
+		<link rel="stylesheet" href={ prefix + "/static/pico.min.css" }/>
+		<link rel="stylesheet" href={ prefix + "/static/github-dark.min.css" }/>
+		<script src={ prefix + "/static/htmx.min.js" }></script>
+		<script defer src={ prefix + "/static/alpine.min.js" }></script>
+		<script src={ prefix + "/static/highlight.min.js" }></script>
+		<script src={ prefix + "/static/highlight-go.min.js" }></script>
 		<style>
-			:root {
-				--bg: #0d1117;
-				--bg-card: #161b22;
-				--bg-hover: #1c2128;
-				--border: #30363d;
-				--text: #e6edf3;
-				--text-dim: #8b949e;
-				--accent: #58a6ff;
-				--accent-hover: #79c0ff;
-				--danger: #f85149;
-				--danger-hover: #ff7b72;
-				--success: #3fb950;
-				--radius: 6px;
-			}
-			* { box-sizing: border-box; margin: 0; padding: 0; }
-			body {
-				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-				background: var(--bg);
-				color: var(--text);
-				line-height: 1.5;
-			}
-			.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
-			header {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 16px 0;
-				border-bottom: 1px solid var(--border);
-				margin-bottom: 24px;
-			}
-			header h1 { font-size: 24px; font-weight: 600; }
-			header h1 span { color: var(--accent); }
-			.tabs {
-				display: flex;
-				gap: 4px;
-				border-bottom: 1px solid var(--border);
-				margin-bottom: 24px;
-			}
-			.tab {
-				padding: 8px 16px;
-				cursor: pointer;
-				border: none;
-				background: none;
-				color: var(--text-dim);
-				font-size: 14px;
-				border-bottom: 2px solid transparent;
-				transition: all 0.15s;
-			}
-			.tab:hover { color: var(--text); }
-			.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
-			.toolbar {
-				display: flex;
-				gap: 12px;
-				margin-bottom: 16px;
-				align-items: center;
-				flex-wrap: wrap;
-			}
-			input[type="text"], input[type="search"] {
-				background: var(--bg-card);
-				border: 1px solid var(--border);
-				color: var(--text);
-				padding: 8px 12px;
-				border-radius: var(--radius);
-				font-size: 14px;
-				flex: 1;
-				min-width: 200px;
-			}
-			input:focus { outline: none; border-color: var(--accent); }
-			button, .btn {
-				padding: 8px 16px;
-				border: 1px solid var(--border);
-				border-radius: var(--radius);
-				cursor: pointer;
-				font-size: 14px;
-				background: var(--bg-card);
-				color: var(--text);
-				transition: all 0.15s;
-				white-space: nowrap;
-			}
-			button:hover, .btn:hover { background: var(--bg-hover); border-color: var(--text-dim); }
-			.btn-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
-			.btn-primary:hover { background: #388bfd; }
-			.btn-danger { color: var(--danger); border-color: var(--danger); }
-			.btn-danger:hover { background: rgba(248,81,73,0.1); }
-			.module-table { width: 100%; border-collapse: collapse; }
-			.module-table th, .module-table td {
-				text-align: left;
-				padding: 10px 12px;
-				border-bottom: 1px solid var(--border);
-			}
-			.module-table th {
-				font-size: 12px;
-				text-transform: uppercase;
-				color: var(--text-dim);
-				font-weight: 600;
-			}
-			.module-table tr:hover { background: var(--bg-hover); }
-			.module-path {
-				color: var(--accent);
-				cursor: pointer;
-				text-decoration: none;
-			}
-			.module-path:hover { text-decoration: underline; color: var(--accent-hover); }
+			pre code { border-radius: var(--pico-border-radius); font-size: 0.85rem; }
 			.version-badge {
 				display: inline-block;
-				padding: 2px 8px;
-				background: rgba(88,166,255,0.1);
-				color: var(--accent);
-				border-radius: 12px;
-				font-size: 12px;
-				margin-right: 4px;
+				padding: 0.1rem 0.5rem;
+				background: var(--pico-primary-background);
+				color: var(--pico-primary-inverse);
+				border-radius: 1rem;
+				font-size: 0.75rem;
+				margin-right: 0.25rem;
 			}
-			.detail-panel {
-				background: var(--bg-card);
-				border: 1px solid var(--border);
-				border-radius: var(--radius);
-				padding: 20px;
-				margin-top: 16px;
+			.file-size { color: var(--pico-muted-color); font-size: 0.85rem; }
+			.module-path { cursor: pointer; }
+			.tab-bar { display: flex; gap: 0.25rem; margin-bottom: 1.5rem; }
+			.tab-bar button {
+				background: none;
+				border: none;
+				border-bottom: 2px solid transparent;
+				color: var(--pico-muted-color);
+				padding: 0.5rem 1rem;
+				cursor: pointer;
+				font-size: 0.9rem;
 			}
-			.detail-header {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				margin-bottom: 16px;
-			}
-			.file-list { list-style: none; }
-			.file-list li {
-				display: flex;
-				justify-content: space-between;
-				align-items: center;
-				padding: 8px 12px;
-				border-bottom: 1px solid var(--border);
-			}
-			.file-list li:last-child { border-bottom: none; }
-			.file-list a { color: var(--accent); text-decoration: none; }
-			.file-list a:hover { text-decoration: underline; }
-			.file-size { color: var(--text-dim); font-size: 13px; }
-			pre code {
-				border-radius: var(--radius);
-				font-size: 13px;
-			}
-			.fetch-form {
-				display: flex;
-				gap: 8px;
-				align-items: center;
-				flex-wrap: wrap;
-			}
-			.alert {
-				padding: 12px 16px;
-				border-radius: var(--radius);
-				margin-top: 12px;
-				font-size: 14px;
-			}
-			.alert-success { background: rgba(63,185,80,0.1); border: 1px solid var(--success); color: var(--success); }
-			.alert-error { background: rgba(248,81,73,0.1); border: 1px solid var(--danger); color: var(--danger); }
-			.empty-state {
-				text-align: center;
-				padding: 60px 20px;
-				color: var(--text-dim);
-			}
-			.empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
-			.log-link { color: var(--text-dim); text-decoration: none; font-size: 14px; }
-			.log-link:hover { color: var(--accent); }
-			.checkbox-cell { width: 32px; text-align: center; }
-			input[type="checkbox"] {
-				width: 16px;
-				height: 16px;
-				accent-color: var(--accent);
-			}
-			.htmx-indicator { display: none; }
-			.htmx-request .htmx-indicator { display: inline; }
-			.spinner { color: var(--text-dim); font-size: 13px; }
-			@media (max-width: 768px) {
-				.container { padding: 16px; }
-				.toolbar { flex-direction: column; }
-				input[type="text"], input[type="search"] { min-width: 100%; }
-			}
+			.tab-bar button:hover { color: var(--pico-color); }
+			.tab-bar button.active { color: var(--pico-primary); border-bottom-color: var(--pico-primary); }
+			.toolbar { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+			.toolbar input[type="search"] { flex: 1; min-width: 200px; margin-bottom: 0; }
+			table input[type="checkbox"] { margin-bottom: 0; }
+			.empty-state { text-align: center; padding: 3rem 1rem; color: var(--pico-muted-color); }
+			#module-detail { margin-top: 1rem; }
+			#file-viewer { margin-top: 1rem; }
+			.fetch-form { display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap; }
+			.fetch-form input { margin-bottom: 0; }
+			.header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+			.header-bar h1 { margin-bottom: 0; }
 		</style>
 	</head>
 	<body>
-		<div class="container" data-ui-prefix={ prefix }>
-			<header>
-				<h1>🏛️ <span>Toga</span></h1>
-				<a href="/logs/" class="log-link">📋 Live Logs</a>
-			</header>
-			<div class="tabs">
-				<button class="tab active" onclick="switchTab(this, 'modules')">Modules</button>
-				<button class="tab" onclick="switchTab(this, 'fetch')">Fetch Package</button>
+		<main class="container" data-ui-prefix={ prefix }>
+			<div class="header-bar">
+				<h1>🏛️ Toga</h1>
+				<a href="/logs/">📋 Live Logs</a>
+			</div>
+			<div class="tab-bar">
+				<button class="active" onclick="switchTab(this, 'modules')">Modules</button>
+				<button onclick="switchTab(this, 'fetch')">Fetch Package</button>
 			</div>
 			<div id="tab-modules">
 				<div class="toolbar" x-data="{ hasSelection: false }">
@@ -230,7 +88,7 @@ templ indexPage(prefix string) {
 						hx-include="this"
 					/>
 					<button
-						class="btn-danger btn"
+						class="outline secondary"
 						x-show="hasSelection"
 						x-cloak
 						onclick="deleteSelected()"
@@ -242,13 +100,13 @@ templ indexPage(prefix string) {
 					hx-get={ prefix + "/modules" }
 					hx-trigger="load"
 				>
-					<div class="spinner">Loading modules...</div>
+					<p aria-busy="true">Loading modules…</p>
 				</div>
 				<div id="module-detail"></div>
 			</div>
 			<div id="tab-fetch" style="display:none">
-				<div class="detail-panel">
-					<h3 style="margin-bottom:16px">Fetch a Go Module</h3>
+				<article>
+					<header><strong>Fetch a Go Module</strong></header>
 					<form class="fetch-form"
 						hx-post={ prefix + "/fetch" }
 						hx-target="#fetch-result"
@@ -256,16 +114,16 @@ templ indexPage(prefix string) {
 					>
 						<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
 						<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
-						<button type="submit" class="btn btn-primary">Fetch</button>
+						<button type="submit">Fetch</button>
 					</form>
 					<div id="fetch-result"></div>
-				</div>
+				</article>
 			</div>
-		</div>
+		</main>
 		<script>
 			var uiPrefix = document.querySelector('[data-ui-prefix]')?.dataset.uiPrefix || '/-/ui';
 			function switchTab(el, tab) {
-				document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+				document.querySelectorAll('.tab-bar button').forEach(t => t.classList.remove('active'));
 				el.classList.add('active');
 				document.getElementById('tab-modules').style.display = tab === 'modules' ? '' : 'none';
 				document.getElementById('tab-fetch').style.display = tab === 'fetch' ? '' : 'none';
@@ -286,13 +144,12 @@ templ indexPage(prefix string) {
 					form.appendChild(input);
 				});
 				document.body.appendChild(form);
-
 				htmx.ajax('POST', uiPrefix + '/delete', {
 					source: form,
 					target: '#module-list'
 				}).then(() => form.remove());
 			}
-			document.body.addEventListener('htmx:afterSwap', function(evt) {
+			document.body.addEventListener('htmx:afterSwap', function() {
 				document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
 			});
 		</script>
@@ -307,13 +164,11 @@ templ moduleListFragment(modules []Module, prefix string) {
 			<p>Fetch a package to get started, or use toga as your GOPROXY.</p>
 		</div>
 	} else {
-		<form id="module-form" x-data={ fmt.Sprintf("{ allChecked: false, toggleAll() { const cbs = document.querySelectorAll('input[name=\"selected\"]'); cbs.forEach(cb => cb.checked = this.allChecked); } }") }>
-			<table class="module-table">
+		<form id="module-form" x-data="{ allChecked: false, toggleAll() { document.querySelectorAll('input[name=selected]').forEach(cb => cb.checked = this.allChecked); } }">
+			<table>
 				<thead>
 					<tr>
-						<th class="checkbox-cell">
-							<input type="checkbox" x-model="allChecked" @change="toggleAll()"/>
-						</th>
+						<th style="width:2rem"><input type="checkbox" x-model="allChecked" @change="toggleAll()"/></th>
 						<th>Module</th>
 						<th>Versions</th>
 						<th>Latest</th>
@@ -323,9 +178,7 @@ templ moduleListFragment(modules []Module, prefix string) {
 				<tbody>
 					for _, m := range modules {
 						<tr>
-							<td class="checkbox-cell">
-								<input type="checkbox" name="selected" value={ m.Path + "@" }/>
-							</td>
+							<td><input type="checkbox" name="selected" value={ m.Path + "@" }/></td>
 							<td>
 								<a class="module-path"
 									hx-get={ prefix + "/module?path=" + m.Path }
@@ -335,19 +188,13 @@ templ moduleListFragment(modules []Module, prefix string) {
 									{ m.Path }
 								</a>
 							</td>
-							<td>
-								{ fmt.Sprintf("%d", len(m.Versions)) }
-							</td>
+							<td>{ fmt.Sprintf("%d", len(m.Versions)) }</td>
 							<td>
 								if len(m.Versions) > 0 {
-									<span class="version-badge">
-										{ m.Versions[len(m.Versions)-1].Version }
-									</span>
+									<span class="version-badge">{ m.Versions[len(m.Versions)-1].Version }</span>
 								}
 							</td>
-							<td class="file-size">
-								{ totalSize(m) }
-							</td>
+							<td class="file-size">{ totalSize(m) }</td>
 						</tr>
 					}
 				</tbody>
@@ -365,52 +212,59 @@ func totalSize(m Module) string {
 }
 
 templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
-	<div class="detail-panel">
-		<div class="detail-header">
-			<h3>{ modPath }</h3>
-			<button class="btn btn-danger"
-				hx-post={ prefix + "/delete" }
-				hx-vals={ fmt.Sprintf(`{"module":"%s","version":""}`, modPath) }
-				hx-target="#module-list"
-				hx-swap="innerHTML"
-				hx-confirm="Delete all cached versions of this module?"
-				hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
-			>
-				Delete Module
-			</button>
-		</div>
+	<article>
+		<header>
+			<div style="display:flex;justify-content:space-between;align-items:center">
+				<strong>{ modPath }</strong>
+				<button class="outline secondary"
+					hx-post={ prefix + "/delete" }
+					hx-vals={ fmt.Sprintf(`{"module":"%s","version":""}`, modPath) }
+					hx-target="#module-list"
+					hx-swap="innerHTML"
+					hx-confirm="Delete all cached versions of this module?"
+					hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
+				>
+					Delete Module
+				</button>
+			</div>
+		</header>
 		if len(files) == 0 {
-			<p style="color:var(--text-dim)">No cached files found.</p>
+			<p class="file-size">No cached files found.</p>
 		} else {
-			<ul class="file-list">
-				for _, f := range files {
-					<li>
-						<a
-							hx-get={ prefix + "/file?name=" + modPath + "/@v/" + f.Name }
-							hx-target="#file-viewer"
-							hx-swap="innerHTML"
-						>
-							{ f.Name }
-						</a>
-						<span class="file-size">{ formatSize(f.Size) }</span>
-					</li>
-				}
-			</ul>
+			<table>
+				<tbody>
+					for _, f := range files {
+						<tr>
+							<td>
+								<a
+									hx-get={ prefix + "/file?name=" + modPath + "/@v/" + f.Name }
+									hx-target="#file-viewer"
+									hx-swap="innerHTML"
+									style="cursor:pointer"
+								>
+									{ f.Name }
+								</a>
+							</td>
+							<td class="file-size">{ formatSize(f.Size) }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
 		}
-		<div id="file-viewer" style="margin-top:16px"></div>
-	</div>
+		<div id="file-viewer"></div>
+	</article>
 }
 
 templ fileViewFragment(name string, content string, lang string, truncated bool) {
-	<div style="position:relative">
-		<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-			<span style="color:var(--text-dim);font-size:13px">{ name }</span>
+	<div>
+		<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+			<small class="file-size">{ name }</small>
 			if truncated {
-				<span style="color:var(--danger);font-size:12px">Truncated to 1 MB</span>
+				<small style="color:var(--pico-del-color)">Truncated to 1 MB</small>
 			}
 		</div>
 		if strings.HasSuffix(name, ".zip") {
-			<p style="color:var(--text-dim)">Binary file — download via proxy endpoint.</p>
+			<p class="file-size">Binary file — download via proxy endpoint.</p>
 		} else {
 			<pre><code class={ "language-" + lang }>{ content }</code></pre>
 		}
@@ -419,16 +273,16 @@ templ fileViewFragment(name string, content string, lang string, truncated bool)
 
 templ fetchResultFragment(modPath string, err error) {
 	if err != nil {
-		<div class="alert alert-error">
+		<p role="alert" style="color:var(--pico-del-color)">
 			Failed to fetch
 			if modPath != "" {
 				<strong>{ modPath }</strong>:
 			}
 			{ err.Error() }
-		</div>
+		</p>
 	} else {
-		<div class="alert alert-success">
-			Successfully fetched <strong>{ modPath }</strong>. It should now appear in the modules list.
-		</div>
+		<p role="alert" style="color:var(--pico-ins-color)">
+			Successfully fetched <strong>{ modPath }</strong>.
+		</p>
 	}
 }
