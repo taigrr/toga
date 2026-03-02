@@ -99,7 +99,7 @@ func (h *Handler) handleFileView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if strings.Contains(name, "..") {
+	if strings.Contains(name, "..") || strings.HasPrefix(name, "/") {
 		http.Error(w, "invalid path", http.StatusBadRequest)
 		return
 	}
