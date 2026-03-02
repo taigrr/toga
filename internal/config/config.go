@@ -76,6 +76,10 @@ type Config struct {
 	TraceExporter   string // "jaeger", "otlp", or "" (disabled)
 	TraceEndpoint   string
 	TraceSampleRate float64
+
+	// Log-socket: WebSocket log streaming
+	EnableLogSocket bool
+	LogSocketPath   string // URL path prefix, default "/logs"
 }
 
 // DiskConfig holds configuration for the filesystem storage backend.
@@ -196,6 +200,10 @@ func setDefaults() {
 	cm.SetDefault("enable_pprof", "false")
 	cm.SetDefault("pprof_port", ":3001")
 
+	// Log-socket
+	cm.SetDefault("enable_log_socket", "false")
+	cm.SetDefault("log_socket_path", "/logs")
+
 	// Tracing
 	cm.SetDefault("trace_exporter", "")
 	cm.SetDefault("trace_endpoint", "")
@@ -273,6 +281,8 @@ func Load() *Config {
 		RobotsFile:       cm.GetString("robots_file"),
 		EnablePprof:      cm.GetBool("enable_pprof"),
 		PprofPort:        cm.GetString("pprof_port"),
+		EnableLogSocket:  cm.GetBool("enable_log_socket"),
+		LogSocketPath:    cm.GetString("log_socket_path"),
 		TraceExporter:    strings.ToLower(cm.GetString("trace_exporter")),
 		TraceEndpoint:    cm.GetString("trace_endpoint"),
 		TraceSampleRate: func() float64 {

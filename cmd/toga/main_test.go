@@ -470,7 +470,7 @@ func TestNewLoggerLevels(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.level, func(t *testing.T) {
-			logger := newLogger(tt.level, "json")
+			logger := newLogger(&config.Config{LogLevel: tt.level, LogFormat: "json"})
 			if logger == nil {
 				t.Fatal("expected non-nil logger")
 			}
@@ -483,7 +483,7 @@ func TestNewLoggerLevels(t *testing.T) {
 
 func TestNewLoggerFormats(t *testing.T) {
 	for _, format := range []string{"json", "plain", "text", ""} {
-		logger := newLogger("info", format)
+		logger := newLogger(&config.Config{LogLevel: "info", LogFormat: format})
 		if logger == nil {
 			t.Errorf("expected non-nil logger for format %q", format)
 		}

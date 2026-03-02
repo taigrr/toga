@@ -21,6 +21,9 @@ import (
 	"github.com/charmbracelet/fang"
 	"github.com/goproxy/goproxy"
 	"github.com/spf13/cobra"
+	"github.com/taigrr/log-socket/v2/browser"
+	logslog "github.com/taigrr/log-socket/v2/slog"
+	"github.com/taigrr/log-socket/v2/ws"
 	"github.com/taigrr/toga/internal/config"
 	"github.com/taigrr/toga/internal/storage/azureblob"
 	"github.com/taigrr/toga/internal/storage/disk"
@@ -61,7 +64,7 @@ func main() {
 func runServe(cmd *cobra.Command, _ []string) error {
 	cfg := config.Load()
 
-	logger := newLogger(cfg.LogLevel, cfg.LogFormat)
+	logger := newLogger(cfg)
 
 	ctx, cancel := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -194,23 +197,81 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 const readHeaderTimeout = 5 * time.Second
 
-func newLogger(level, format string) *slog.Logger {
-	var logLevel slog.Level
+func parseSlogLevel(level string) slog.Level {
 	switch level {
 	case "debug":
-		logLevel = slog.LevelDebug
+		return slog.LevelDebug
 	case "warn":
-		logLevel = slog.LevelWarn
+		return slog.LevelWarn
 	case "error":
-		logLevel = slog.LevelError
+		return slog.LevelError
 	default:
-		logLevel = slog.LevelInfo
+		return slog.LevelInfo
 	}
+}
+
+func newLogger(cfg *config.Config) *slog.Logger {
+	logLevel := parseSlogLevel(cfg.LogLevel)
 	opts := &slog.HandlerOptions{Level: logLevel}
-	if format == "plain" || format == "text" {
-		return slog.New(slog.NewTextHandler(os.Stderr, opts))
+
+	var stderrHandler slog.Handler
+	if cfg.LogFormat == "plain" || cfg.LogFormat == "text" {
+		stderrHandler = slog.NewTextHandler(os.Stderr, opts)
+	} else {
+		stderrHandler = slog.NewJSONHandler(os.Stderr, opts)
 	}
-	return slog.New(slog.NewJSONHandler(os.Stderr, opts))
+
+	if !cfg.EnableLogSocket {
+		return slog.New(stderrHandler)
+	}
+
+	// Fan out to both stderr and log-socket.
+	lsHandler := logslog.NewHandler(
+		logslog.WithNamespace("toga"),
+		logslog.WithLevel(logLevel),
+	)
+	return slog.New(&multiHandler{handlers: []slog.Handler{stderrHandler, lsHandler}})
+}
+
+// multiHandler fans out slog records to multiple handlers.
+type multiHandler struct {
+	handlers []slog.Handler
+}
+
+func (m *multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, h := range m.handlers {
+		if h.Enabled(ctx, level) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *multiHandler) Handle(ctx context.Context, r slog.Record) error {
+	for _, h := range m.handlers {
+		if h.Enabled(ctx, r.Level) {
+			if err := h.Handle(ctx, r); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func (m *multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	handlers := make([]slog.Handler, len(m.handlers))
+	for i, h := range m.handlers {
+		handlers[i] = h.WithAttrs(attrs)
+	}
+	return &multiHandler{handlers: handlers}
+}
+
+func (m *multiHandler) WithGroup(name string) slog.Handler {
+	handlers := make([]slog.Handler, len(m.handlers))
+	for i, h := range m.handlers {
+		handlers[i] = h.WithGroup(name)
+	}
+	return &multiHandler{handlers: handlers}
 }
 
 func listen(cfg *config.Config) (net.Listener, error) {
@@ -253,6 +314,16 @@ func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logge
 		mux.HandleFunc("/robots.txt", robotsHandler(cfg.RobotsFile, logger))
 	} else {
 		mux.HandleFunc("/robots.txt", defaultRobotsHandler)
+	}
+
+	// Log-socket viewer + WebSocket
+	if cfg.EnableLogSocket {
+		path := cfg.LogSocketPath
+		if path == "" {
+			path = "/logs"
+		}
+		mux.HandleFunc(path+"/", browser.LogSocketViewHandler)
+		mux.HandleFunc(path+"/ws", ws.LogSocketHandler)
 	}
 
 	// Homepage
