@@ -179,6 +179,11 @@ func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 			{base + ".mod", mod},
 			{base + ".zip", zip},
 		} {
+			// Seek to start — Download may have advanced the reader position.
+			if _, err := pair.r.Seek(0, io.SeekStart); err != nil {
+				h.Logger.Error("cache seek", "name", pair.name, "error", err)
+				continue
+			}
 			if err := h.Cacher.Put(ctx, pair.name, pair.r); err != nil {
 				h.Logger.Error("cache put", "name", pair.name, "error", err)
 			}

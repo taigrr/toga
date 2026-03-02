@@ -26,10 +26,8 @@ func (a *AzureLister) ListModules(ctx context.Context, cursor, query string, lim
 	var collected []string
 
 	opts := &azblob.ListBlobsFlatOptions{}
-	if cursor != "" && query == "" {
-		marker := cursor + "/@v/"
-		opts.Marker = &marker
-	}
+	// Azure Marker is an opaque continuation token, not a seek position.
+	// We rely on client-side cursor filtering instead.
 
 	pager := a.Client.NewListBlobsFlatPager(a.Container, opts)
 	for pager.More() {

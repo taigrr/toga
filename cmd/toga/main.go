@@ -402,15 +402,19 @@ func robotsHandler(path string, logger *slog.Logger) http.HandlerFunc {
 }
 
 func homeOrProxy(tmplPath string, proxyHandler http.Handler, logger *slog.Logger) http.HandlerFunc {
+	// Parse template once at startup rather than per-request.
+	tmpl, parseErr := template.ParseFiles(tmplPath)
+	if parseErr != nil {
+		logger.Warn("failed to parse home template", "path", tmplPath, "error", parseErr)
+	}
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Only serve homepage at exact root path.
 		if r.URL.Path != "/" {
 			proxyHandler.ServeHTTP(w, r)
 			return
 		}
-		tmpl, err := template.ParseFiles(tmplPath)
-		if err != nil {
-			logger.Warn("failed to parse home template", "path", tmplPath, "error", err)
+		if tmpl == nil {
 			proxyHandler.ServeHTTP(w, r)
 			return
 		}
