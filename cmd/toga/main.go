@@ -20,6 +20,7 @@ import (
 
 	"github.com/charmbracelet/fang"
 	"github.com/goproxy/goproxy"
+	"github.com/minio/minio-go/v7"
 	"github.com/spf13/cobra"
 	"github.com/taigrr/log-socket/v2/browser"
 	logslog "github.com/taigrr/log-socket/v2/slog"
@@ -321,9 +322,23 @@ func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher gop
 	mux.HandleFunc(logPath+"/", browser.LogSocketViewHandler)
 	mux.HandleFunc(logPath+"/ws", ws.LogSocketHandler)
 
-	// Web UI for module browsing
+	// Web UI for module browsing — pick the right lister for the backend.
+	var lister web.Lister
+	type minioBackend interface {
+		MinioClient() *minio.Client
+		BucketName() string
+	}
+	if mb, ok := cacher.(minioBackend); ok {
+		lister = &web.ObjectStoreLister{
+			Client: mb.MinioClient(),
+			Bucket: mb.BucketName(),
+		}
+	} else {
+		lister = &web.DiskLister{Root: cfg.Disk.RootPath}
+	}
+
 	uiHandler := &web.Handler{
-		Lister:  &web.DiskLister{Root: cfg.Disk.RootPath},
+		Lister:  lister,
 		Fetcher: fetcher,
 		Cacher:  cacher,
 		Logger:  logger,
