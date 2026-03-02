@@ -55,26 +55,23 @@ func (h *Handler) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) handleModuleList(w http.ResponseWriter, r *http.Request) {
 	query := strings.ToLower(r.URL.Query().Get("q"))
+	cursor := r.URL.Query().Get("cursor")
 
-	modules, err := h.Lister.ListModules(r.Context())
+	page, err := h.Lister.ListModules(r.Context(), cursor, query, DefaultPageSize)
 	if err != nil {
 		h.Logger.Error("list modules", "error", err)
 		http.Error(w, "failed to list modules", http.StatusInternalServerError)
 		return
 	}
 
-	if query != "" {
-		filtered := modules[:0]
-		for _, m := range modules {
-			if strings.Contains(strings.ToLower(m.Path), query) {
-				filtered = append(filtered, m)
-			}
-		}
-		modules = filtered
-	}
-
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	moduleListFragment(modules, h.Prefix).Render(r.Context(), w)
+
+	// If this is a "load more" request (has cursor), return just the rows.
+	if cursor != "" {
+		moduleRowsFragment(page, query, h.Prefix).Render(r.Context(), w)
+	} else {
+		moduleListFragment(page, query, h.Prefix).Render(r.Context(), w)
+	}
 }
 
 func (h *Handler) handleModuleDetail(w http.ResponseWriter, r *http.Request) {
@@ -153,7 +150,6 @@ func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 	if version == "" || version == "latest" {
-		// Query for the latest version.
 		resolved, _, err := h.Fetcher.Query(ctx, modPath, "latest")
 		if err != nil {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -163,7 +159,6 @@ func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 		version = resolved
 	}
 
-	// Download info, mod, zip and cache them.
 	info, mod, zip, err := h.Fetcher.Download(ctx, modPath, version)
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -174,7 +169,6 @@ func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 	defer mod.Close()
 	defer zip.Close()
 
-	// Cache all three files if we have a cacher.
 	if h.Cacher != nil {
 		base := modPath + "/@v/" + version
 		for _, pair := range []struct {

@@ -2,6 +2,7 @@ package web
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 )
 
@@ -14,6 +15,22 @@ func formatSize(bytes int64) string {
 	default:
 		return fmt.Sprintf("%d B", bytes)
 	}
+}
+
+func totalSize(m Module) string {
+	var total int64
+	for _, v := range m.Versions {
+		total += v.Size
+	}
+	return formatSize(total)
+}
+
+func nextPageURL(prefix, cursor, query string) string {
+	u := prefix + "/modules?cursor=" + url.QueryEscape(cursor)
+	if query != "" {
+		u += "&q=" + url.QueryEscape(query)
+	}
+	return u
 }
 
 templ indexPage(prefix string) {
@@ -64,6 +81,7 @@ templ indexPage(prefix string) {
 			.fetch-form input { margin-bottom: 0; }
 			.header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 			.header-bar h1 { margin-bottom: 0; }
+			.total-count { color: var(--pico-muted-color); font-size: 0.85rem; margin-bottom: 0.5rem; }
 		</style>
 	</head>
 	<body>
@@ -157,13 +175,22 @@ templ indexPage(prefix string) {
 	</html>
 }
 
-templ moduleListFragment(modules []Module, prefix string) {
-	if len(modules) == 0 {
+// moduleListFragment renders the full table with header (first page load or new search).
+templ moduleListFragment(page *ModulePage, query string, prefix string) {
+	if len(page.Modules) == 0 && page.Total == 0 {
 		<div class="empty-state">
 			<h3>No modules cached</h3>
 			<p>Fetch a package to get started, or use toga as your GOPROXY.</p>
 		</div>
+	} else if len(page.Modules) == 0 {
+		<div class="empty-state">
+			<h3>No matching modules</h3>
+			<p>Try a different filter.</p>
+		</div>
 	} else {
+		if page.Total > 0 {
+			<p class="total-count">{ fmt.Sprintf("%d modules", page.Total) }</p>
+		}
 		<form id="module-form" x-data="{ allChecked: false, toggleAll() { document.querySelectorAll('input[name=selected]').forEach(cb => cb.checked = this.allChecked); } }">
 			<table>
 				<thead>
@@ -175,27 +202,12 @@ templ moduleListFragment(modules []Module, prefix string) {
 						<th>Size</th>
 					</tr>
 				</thead>
-				<tbody>
-					for _, m := range modules {
-						<tr>
-							<td><input type="checkbox" name="selected" value={ m.Path + "@" }/></td>
-							<td>
-								<a class="module-path"
-									hx-get={ prefix + "/module?path=" + m.Path }
-									hx-target="#module-detail"
-									hx-swap="innerHTML"
-								>
-									{ m.Path }
-								</a>
-							</td>
-							<td>{ fmt.Sprintf("%d", len(m.Versions)) }</td>
-							<td>
-								if len(m.Versions) > 0 {
-									<span class="version-badge">{ m.Versions[len(m.Versions)-1].Version }</span>
-								}
-							</td>
-							<td class="file-size">{ totalSize(m) }</td>
-						</tr>
+				<tbody id="module-rows">
+					for _, m := range page.Modules {
+						@moduleRow(m, prefix)
+					}
+					if page.NextCursor != "" {
+						@loadMoreSentinel(page.NextCursor, query, prefix)
 					}
 				</tbody>
 			</table>
@@ -203,12 +215,50 @@ templ moduleListFragment(modules []Module, prefix string) {
 	}
 }
 
-func totalSize(m Module) string {
-	var total int64
-	for _, v := range m.Versions {
-		total += v.Size
+// moduleRowsFragment renders just additional rows (for "load more" / infinite scroll).
+templ moduleRowsFragment(page *ModulePage, query string, prefix string) {
+	for _, m := range page.Modules {
+		@moduleRow(m, prefix)
 	}
-	return formatSize(total)
+	if page.NextCursor != "" {
+		@loadMoreSentinel(page.NextCursor, query, prefix)
+	}
+}
+
+templ moduleRow(m Module, prefix string) {
+	<tr>
+		<td><input type="checkbox" name="selected" value={ m.Path + "@" }/></td>
+		<td>
+			<a class="module-path"
+				hx-get={ prefix + "/module?path=" + m.Path }
+				hx-target="#module-detail"
+				hx-swap="innerHTML"
+			>
+				{ m.Path }
+			</a>
+		</td>
+		<td>{ fmt.Sprintf("%d", len(m.Versions)) }</td>
+		<td>
+			if len(m.Versions) > 0 {
+				<span class="version-badge">{ m.Versions[len(m.Versions)-1].Version }</span>
+			}
+		</td>
+		<td class="file-size">{ totalSize(m) }</td>
+	</tr>
+}
+
+// loadMoreSentinel is an invisible row that triggers loading the next page
+// when it scrolls into view.
+templ loadMoreSentinel(cursor, query, prefix string) {
+	<tr
+		hx-get={ nextPageURL(prefix, cursor, query) }
+		hx-trigger="revealed"
+		hx-swap="outerHTML"
+	>
+		<td colspan="5" style="text-align:center">
+			<p aria-busy="true" style="margin:0;font-size:0.85rem">Loading more…</p>
+		</td>
+	</tr>
 }
 
 templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {

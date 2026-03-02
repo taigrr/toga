@@ -35,9 +35,23 @@ type FileEntry struct {
 	ModTime time.Time
 }
 
+// ModulePage is a paginated result set of modules.
+type ModulePage struct {
+	Modules    []Module
+	NextCursor string // empty if no more results
+	Total      int    // total matching modules (-1 if unknown)
+}
+
+// DefaultPageSize is the number of modules per page.
+const DefaultPageSize = 50
+
 // Lister can enumerate cached modules. Implemented per storage backend.
 type Lister interface {
-	ListModules(ctx context.Context) ([]Module, error)
+	// ListModules returns a paginated list of cached modules.
+	// cursor is the module path to start after (empty for first page).
+	// query filters by substring match (empty for all).
+	// limit is max results to return.
+	ListModules(ctx context.Context, cursor, query string, limit int) (*ModulePage, error)
 	ListFiles(ctx context.Context, modulePath string) ([]FileEntry, error)
 	GetFile(ctx context.Context, name string) (io.ReadCloser, error)
 	DeleteModule(ctx context.Context, modulePath, version string) error
@@ -48,8 +62,14 @@ type DiskLister struct {
 	Root string
 }
 
-// ListModules walks the cache directory to find all cached modules.
-func (d *DiskLister) ListModules(ctx context.Context) ([]Module, error) {
+// ListModules walks the cache directory with pagination support.
+func (d *DiskLister) ListModules(ctx context.Context, cursor, query string, limit int) (*ModulePage, error) {
+	if limit <= 0 {
+		limit = DefaultPageSize
+	}
+
+	// Walk and collect all module paths first (just paths, not full info).
+	// For disk, we have to walk regardless, but we can stop early if no filter.
 	modules := make(map[string]*Module)
 
 	err := filepath.WalkDir(d.Root, func(path string, entry fs.DirEntry, err error) error {
@@ -76,6 +96,11 @@ func (d *DiskLister) ListModules(ctx context.Context) ([]Module, error) {
 		fileName := rel[idx+len(atV):]
 		ext := filepath.Ext(fileName)
 		if ext != ".info" && ext != ".mod" && ext != ".zip" && fileName != "list" {
+			return nil
+		}
+
+		// Apply query filter early.
+		if query != "" && !strings.Contains(strings.ToLower(modPath), query) {
 			return nil
 		}
 
@@ -122,17 +147,46 @@ func (d *DiskLister) ListModules(ctx context.Context) ([]Module, error) {
 		return nil, err
 	}
 
-	result := make([]Module, 0, len(modules))
-	for _, m := range modules {
+	// Sort all paths.
+	sorted := make([]string, 0, len(modules))
+	for p := range modules {
+		sorted = append(sorted, p)
+	}
+	sort.Strings(sorted)
+
+	total := len(sorted)
+
+	// Apply cursor: find the start index.
+	startIdx := 0
+	if cursor != "" {
+		for i, p := range sorted {
+			if p == cursor {
+				startIdx = i + 1
+				break
+			}
+		}
+	}
+
+	// Slice the page.
+	endIdx := startIdx + limit
+	if endIdx > len(sorted) {
+		endIdx = len(sorted)
+	}
+
+	page := &ModulePage{Total: total}
+	for _, p := range sorted[startIdx:endIdx] {
+		m := modules[p]
 		sort.Slice(m.Versions, func(i, j int) bool {
 			return m.Versions[i].Version < m.Versions[j].Version
 		})
-		result = append(result, *m)
+		page.Modules = append(page.Modules, *m)
 	}
-	sort.Slice(result, func(i, j int) bool {
-		return result[i].Path < result[j].Path
-	})
-	return result, nil
+
+	if endIdx < len(sorted) {
+		page.NextCursor = sorted[endIdx-1]
+	}
+
+	return page, nil
 }
 
 // ListFiles returns all cached files for a module path.
