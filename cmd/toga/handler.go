@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 
 	cloudstorage "cloud.google.com/go/storage"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
@@ -41,7 +42,7 @@ func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher gop
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthHandler)
-	mux.HandleFunc("/readyz", healthHandler)
+	mux.HandleFunc("/readyz", readyHandler(cfg.GoBinary))
 
 	// Robots.txt
 	if cfg.RobotsFile != "" {
@@ -190,4 +191,18 @@ func basicAuth(next http.Handler, user, pass string) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func readyHandler(goBin string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		if goBin == "" {
+			goBin = "go"
+		}
+		if _, err := exec.LookPath(goBin); err != nil {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprintf(w, "go binary not found: %s\n", goBin)
+			return
+		}
+		fmt.Fprintln(w, "ok")
+	}
 }
