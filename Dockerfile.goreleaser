@@ -1,5 +1,6 @@
 FROM alpine:3.21
 RUN apk add --no-cache ca-certificates git
-COPY toga /usr/local/bin/toga
+ARG TARGETPLATFORM
+COPY ${TARGETPLATFORM}/toga /usr/local/bin/toga
 EXPOSE 3000
 ENTRYPOINT ["toga"]
