@@ -2,16 +2,13 @@ package s3
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/minio/minio-go/v7"
+	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
 const (
@@ -20,64 +17,27 @@ const (
 	testSecretKey = "minioadmin"
 )
 
-var testEndpoint string
-
-func TestMain(m *testing.M) {
-	// Start MinIO container for S3 integration tests.
-	containerName := "toga-s3-test-minio"
-
-	// Clean up any leftover container.
-	exec.Command("docker", "rm", "-f", containerName).Run()
-
-	cmd := exec.Command("docker", "run", "-d",
-		"--name", containerName,
-		"-p", "0:9000",
-		"-e", "MINIO_ROOT_USER="+testAccessKey,
-		"-e", "MINIO_ROOT_PASSWORD="+testSecretKey,
-		"minio/minio", "server", "/data",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "skipping S3 tests: docker unavailable: %s\n", out)
-		os.Exit(0)
-	}
-	containerID := strings.TrimSpace(string(out))
-
-	// Get mapped port.
-	portOut, err := exec.Command("docker", "port", containerName, "9000/tcp").Output()
-	if err != nil {
-		exec.Command("docker", "rm", "-f", containerID).Run()
-		fmt.Fprintf(os.Stderr, "failed to get port: %v\n", err)
-		os.Exit(1)
-	}
-	lines := strings.Split(strings.TrimSpace(string(portOut)), "\n")
-	testEndpoint = "http://" + strings.TrimSpace(lines[0])
-
-	// Wait for MinIO to be ready.
-	ready := false
-	for i := 0; i < 30; i++ {
-		checkCmd := exec.Command("docker", "exec", containerName, "mc", "ready", "local")
-		if checkCmd.Run() == nil {
-			ready = true
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	if !ready {
-		// Try anyway — mc might not be available but MinIO could still work.
-		time.Sleep(2 * time.Second)
-	}
-
-	code := m.Run()
-
-	exec.Command("docker", "rm", "-f", containerID).Run()
-	os.Exit(code)
-}
-
 func newTestCacher(t *testing.T) *Cacher {
 	t.Helper()
-	c, err := New(context.Background(), Config{
-		Endpoint:       testEndpoint,
+	ctx := context.Background()
+
+	container, err := tcminio.Run(ctx,
+		"minio/minio:latest",
+		tcminio.WithUsername(testAccessKey),
+		tcminio.WithPassword(testSecretKey),
+	)
+	if err != nil {
+		t.Fatalf("start minio container: %v", err)
+	}
+	t.Cleanup(func() { container.Terminate(ctx) })
+
+	endpoint, err := container.ConnectionString(ctx)
+	if err != nil {
+		t.Fatalf("get connection string: %v", err)
+	}
+
+	c, err := New(ctx, Config{
+		Endpoint:       "http://" + endpoint,
 		Key:            testAccessKey,
 		Secret:         testSecretKey,
 		Bucket:         testBucket,
@@ -88,8 +48,6 @@ func newTestCacher(t *testing.T) *Cacher {
 		t.Fatalf("new s3 cacher: %v", err)
 	}
 
-	// Create bucket via the underlying client.
-	ctx := context.Background()
 	c.client.MakeBucket(ctx, testBucket, minio.MakeBucketOptions{Region: "us-east-1"})
 
 	return c
@@ -152,7 +110,6 @@ func TestLargeFile(t *testing.T) {
 	c := newTestCacher(t)
 	ctx := context.Background()
 
-	// 1MB file.
 	name := "github.com/example/mod/@v/v1.0.0.zip"
 	content := strings.Repeat("x", 1024*1024)
 

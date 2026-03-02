@@ -2,14 +2,12 @@ package minio
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"io/fs"
-	"os"
-	"os/exec"
 	"strings"
 	"testing"
-	"time"
+
+	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
 )
 
 const (
@@ -18,57 +16,27 @@ const (
 	testSecretKey = "minioadmin"
 )
 
-var testEndpoint string
-
-func TestMain(m *testing.M) {
-	containerName := "toga-minio-test-minio"
-	exec.Command("docker", "rm", "-f", containerName).Run()
-
-	cmd := exec.Command("docker", "run", "-d",
-		"--name", containerName,
-		"-p", "0:9000",
-		"-e", "MINIO_ROOT_USER="+testAccessKey,
-		"-e", "MINIO_ROOT_PASSWORD="+testSecretKey,
-		"minio/minio", "server", "/data",
-	)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "skipping MinIO tests: docker unavailable: %s\n", out)
-		os.Exit(0)
-	}
-	containerID := strings.TrimSpace(string(out))
-
-	portOut, err := exec.Command("docker", "port", containerName, "9000/tcp").Output()
-	if err != nil {
-		exec.Command("docker", "rm", "-f", containerID).Run()
-		fmt.Fprintf(os.Stderr, "failed to get port: %v\n", err)
-		os.Exit(1)
-	}
-	lines := strings.Split(strings.TrimSpace(string(portOut)), "\n")
-	testEndpoint = strings.TrimSpace(lines[0])
-
-	ready := false
-	for i := 0; i < 30; i++ {
-		checkCmd := exec.Command("docker", "exec", containerName, "mc", "ready", "local")
-		if checkCmd.Run() == nil {
-			ready = true
-			break
-		}
-		time.Sleep(500 * time.Millisecond)
-	}
-	if !ready {
-		time.Sleep(2 * time.Second)
-	}
-
-	code := m.Run()
-	exec.Command("docker", "rm", "-f", containerID).Run()
-	os.Exit(code)
-}
-
 func newTestCacher(t *testing.T) *Cacher {
 	t.Helper()
-	c, err := New(context.Background(), Config{
-		Endpoint: testEndpoint,
+	ctx := context.Background()
+
+	container, err := tcminio.Run(ctx,
+		"minio/minio:latest",
+		tcminio.WithUsername(testAccessKey),
+		tcminio.WithPassword(testSecretKey),
+	)
+	if err != nil {
+		t.Fatalf("start minio container: %v", err)
+	}
+	t.Cleanup(func() { container.Terminate(ctx) })
+
+	endpoint, err := container.ConnectionString(ctx)
+	if err != nil {
+		t.Fatalf("get connection string: %v", err)
+	}
+
+	c, err := New(ctx, Config{
+		Endpoint: endpoint,
 		Key:      testAccessKey,
 		Secret:   testSecretKey,
 		Bucket:   testBucket,
@@ -154,21 +122,34 @@ func TestLargeFile(t *testing.T) {
 }
 
 func TestBucketAutoCreation(t *testing.T) {
-	// New() should auto-create the bucket — verify by creating a second
-	// cacher pointing at a fresh bucket name.
-	freshBucket := "toga-minio-auto-create"
-	c, err := New(context.Background(), Config{
-		Endpoint: testEndpoint,
+	ctx := context.Background()
+
+	container, err := tcminio.Run(ctx,
+		"minio/minio:latest",
+		tcminio.WithUsername(testAccessKey),
+		tcminio.WithPassword(testSecretKey),
+	)
+	if err != nil {
+		t.Fatalf("start minio container: %v", err)
+	}
+	t.Cleanup(func() { container.Terminate(ctx) })
+
+	endpoint, err := container.ConnectionString(ctx)
+	if err != nil {
+		t.Fatalf("get connection string: %v", err)
+	}
+
+	c, err := New(ctx, Config{
+		Endpoint: endpoint,
 		Key:      testAccessKey,
 		Secret:   testSecretKey,
-		Bucket:   freshBucket,
+		Bucket:   "toga-auto-create",
 		Region:   "us-east-1",
 	})
 	if err != nil {
 		t.Fatalf("new cacher with auto-create: %v", err)
 	}
 
-	ctx := context.Background()
 	if err := c.Put(ctx, "test-key", strings.NewReader("hello")); err != nil {
 		t.Fatalf("put after auto-create: %v", err)
 	}
