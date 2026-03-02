@@ -187,8 +187,8 @@ func TestValidateStorageMemory(t *testing.T) {
 
 func TestValidateStorageUnknownType(t *testing.T) {
 	cfg := &config.Config{StorageType: "unknown"}
-	if err := validateStorage(cfg); err != nil {
-		t.Errorf("unexpected error: %v", err)
+	if err := validateStorage(cfg); err == nil {
+		t.Error("expected error for unknown storage type")
 	}
 }
 

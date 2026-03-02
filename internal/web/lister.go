@@ -40,6 +40,9 @@ type ModulePage struct {
 // DefaultPageSize is the number of modules per page.
 const DefaultPageSize = 50
 
+// versionPrefix is the path separator between module path and version files.
+const versionPrefix = "/@v/"
+
 // Lister can enumerate cached modules. Implemented per storage backend.
 type Lister interface {
 	// ListModules returns a paginated list of cached modules.

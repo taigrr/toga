@@ -16,6 +16,7 @@ type AzureLister struct {
 	Container string
 }
 
+// ListModules returns a paginated list of cached modules from the backend.
 func (a *AzureLister) ListModules(ctx context.Context, cursor, query string, limit int) (*ModulePage, error) {
 	if limit <= 0 {
 		limit = DefaultPageSize
@@ -41,7 +42,7 @@ func (a *AzureLister) ListModules(ctx context.Context, cursor, query string, lim
 				continue
 			}
 
-			idx := strings.LastIndex(*blob.Name, "/@v/")
+			idx := strings.LastIndex(*blob.Name, versionPrefix)
 			if idx < 0 {
 				continue
 			}
@@ -96,7 +97,7 @@ func (a *AzureLister) ListModules(ctx context.Context, cursor, query string, lim
 
 func (a *AzureLister) loadModuleDetail(ctx context.Context, modPath string) (Module, error) {
 	m := Module{Path: modPath}
-	prefix := modPath + "/@v/"
+	prefix := modPath + versionPrefix
 
 	versions := make(map[string]*Version)
 	opts := &azblob.ListBlobsFlatOptions{Prefix: &prefix}
@@ -154,8 +155,9 @@ func (a *AzureLister) loadModuleDetail(ctx context.Context, modPath string) (Mod
 	return m, nil
 }
 
+// ListFiles lists all cached files for a module path.
 func (a *AzureLister) ListFiles(ctx context.Context, modulePath string) ([]FileEntry, error) {
-	prefix := modulePath + "/@v/"
+	prefix := modulePath + versionPrefix
 	var files []FileEntry
 
 	opts := &azblob.ListBlobsFlatOptions{Prefix: &prefix}
@@ -189,6 +191,7 @@ func (a *AzureLister) ListFiles(ctx context.Context, modulePath string) ([]FileE
 	return files, nil
 }
 
+// GetFile retrieves a single cached file by name.
 func (a *AzureLister) GetFile(ctx context.Context, name string) (io.ReadCloser, error) {
 	resp, err := a.Client.DownloadStream(ctx, a.Container, name, nil)
 	if err != nil {
@@ -197,16 +200,17 @@ func (a *AzureLister) GetFile(ctx context.Context, name string) (io.ReadCloser, 
 	return resp.Body, nil
 }
 
+// DeleteModule removes cached files for a module and optional version.
 func (a *AzureLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
 		for _, ext := range []string{".info", ".mod", ".zip"} {
-			key := modulePath + "/@v/" + version + ext
+			key := modulePath + versionPrefix + version + ext
 			_, _ = a.Client.DeleteBlob(ctx, a.Container, key, nil)
 		}
 		return nil
 	}
 
-	prefix := modulePath + "/@v/"
+	prefix := modulePath + versionPrefix
 	opts := &azblob.ListBlobsFlatOptions{Prefix: &prefix}
 	pager := a.Client.NewListBlobsFlatPager(a.Container, opts)
 	for pager.More() {

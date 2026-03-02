@@ -505,6 +505,8 @@ func validateStorage(cfg *config.Config) error {
 		if cfg.AzureBlob.AccountName == "" || cfg.AzureBlob.ContainerName == "" {
 			return fmt.Errorf("azureblob storage requires account_name and container_name")
 		}
+	default:
+		return fmt.Errorf("unknown storage type: %s", cfg.StorageType)
 	}
 	return nil
 }

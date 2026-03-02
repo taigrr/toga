@@ -19,7 +19,7 @@ type ObjectStoreLister struct {
 
 // ListModules uses S3 ListObjects to enumerate module paths.
 // Since S3 keys are flat (module/@v/version.ext), we list with prefix=""
-// and look for keys containing "/@v/" to extract module paths.
+// and look for keys containing versionPrefix to extract module paths.
 // For large buckets, this streams results instead of loading all keys into memory.
 func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query string, limit int) (*ModulePage, error) {
 	if limit <= 0 {
@@ -43,7 +43,7 @@ func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query strin
 	}
 	if cursor != "" && query == "" {
 		// Start listing from cursor/@v to skip everything before.
-		opts.StartAfter = cursor + "/@v/"
+		opts.StartAfter = cursor + versionPrefix
 	}
 
 	for obj := range o.Client.ListObjects(ctx, o.Bucket, opts) {
@@ -51,7 +51,7 @@ func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query strin
 			return nil, obj.Err
 		}
 
-		atV := "/@v/"
+		atV := versionPrefix
 		idx := strings.LastIndex(obj.Key, atV)
 		if idx < 0 {
 			continue
@@ -120,7 +120,7 @@ func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query strin
 // loadModuleDetail lists objects under module/@v/ to build version info.
 func (o *ObjectStoreLister) loadModuleDetail(ctx context.Context, modPath string) (Module, error) {
 	m := Module{Path: modPath}
-	prefix := modPath + "/@v/"
+	prefix := modPath + versionPrefix
 
 	versions := make(map[string]*Version)
 	for obj := range o.Client.ListObjects(ctx, o.Bucket, minio.ListObjectsOptions{
@@ -171,7 +171,7 @@ func (o *ObjectStoreLister) loadModuleDetail(ctx context.Context, modPath string
 
 // ListFiles lists all objects under module/@v/.
 func (o *ObjectStoreLister) ListFiles(ctx context.Context, modulePath string) ([]FileEntry, error) {
-	prefix := modulePath + "/@v/"
+	prefix := modulePath + versionPrefix
 	var files []FileEntry
 
 	for obj := range o.Client.ListObjects(ctx, o.Bucket, minio.ListObjectsOptions{
@@ -212,14 +212,14 @@ func (o *ObjectStoreLister) GetFile(ctx context.Context, name string) (io.ReadCl
 func (o *ObjectStoreLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
 		for _, ext := range []string{".info", ".mod", ".zip"} {
-			key := modulePath + "/@v/" + version + ext
+			key := modulePath + versionPrefix + version + ext
 			_ = o.Client.RemoveObject(ctx, o.Bucket, key, minio.RemoveObjectOptions{})
 		}
 		return nil
 	}
 
 	// Delete all objects with this module prefix.
-	prefix := modulePath + "/@v/"
+	prefix := modulePath + versionPrefix
 	for obj := range o.Client.ListObjects(ctx, o.Bucket, minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: true,

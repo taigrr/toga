@@ -17,6 +17,7 @@ type GCSLister struct {
 	Bucket string
 }
 
+// ListModules returns a paginated list of cached modules from the backend.
 func (g *GCSLister) ListModules(ctx context.Context, cursor, query string, limit int) (*ModulePage, error) {
 	if limit <= 0 {
 		limit = DefaultPageSize
@@ -28,7 +29,7 @@ func (g *GCSLister) ListModules(ctx context.Context, cursor, query string, limit
 
 	q := &storage.Query{Versions: false}
 	if cursor != "" && query == "" {
-		q.StartOffset = cursor + "/@v/"
+		q.StartOffset = cursor + versionPrefix
 	}
 
 	it := g.Client.Bucket(g.Bucket).Objects(ctx, q)
@@ -41,7 +42,7 @@ func (g *GCSLister) ListModules(ctx context.Context, cursor, query string, limit
 			return nil, err
 		}
 
-		idx := strings.LastIndex(attrs.Name, "/@v/")
+		idx := strings.LastIndex(attrs.Name, versionPrefix)
 		if idx < 0 {
 			continue
 		}
@@ -95,7 +96,7 @@ func (g *GCSLister) ListModules(ctx context.Context, cursor, query string, limit
 
 func (g *GCSLister) loadModuleDetail(ctx context.Context, modPath string) (Module, error) {
 	m := Module{Path: modPath}
-	prefix := modPath + "/@v/"
+	prefix := modPath + versionPrefix
 
 	versions := make(map[string]*Version)
 	q := &storage.Query{Prefix: prefix}
@@ -147,8 +148,9 @@ func (g *GCSLister) loadModuleDetail(ctx context.Context, modPath string) (Modul
 	return m, nil
 }
 
+// ListFiles lists all cached files for a module path.
 func (g *GCSLister) ListFiles(ctx context.Context, modulePath string) ([]FileEntry, error) {
-	prefix := modulePath + "/@v/"
+	prefix := modulePath + versionPrefix
 	var files []FileEntry
 
 	q := &storage.Query{Prefix: prefix}
@@ -174,20 +176,22 @@ func (g *GCSLister) ListFiles(ctx context.Context, modulePath string) ([]FileEnt
 	return files, nil
 }
 
+// GetFile retrieves a single cached file by name.
 func (g *GCSLister) GetFile(ctx context.Context, name string) (io.ReadCloser, error) {
 	return g.Client.Bucket(g.Bucket).Object(name).NewReader(ctx)
 }
 
+// DeleteModule removes cached files for a module and optional version.
 func (g *GCSLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
 		for _, ext := range []string{".info", ".mod", ".zip"} {
-			key := modulePath + "/@v/" + version + ext
+			key := modulePath + versionPrefix + version + ext
 			_ = g.Client.Bucket(g.Bucket).Object(key).Delete(ctx)
 		}
 		return nil
 	}
 
-	prefix := modulePath + "/@v/"
+	prefix := modulePath + versionPrefix
 	q := &storage.Query{Prefix: prefix}
 	it := g.Client.Bucket(g.Bucket).Objects(ctx, q)
 	for {
