@@ -71,3 +71,9 @@ var _ interface {
 	Get(context.Context, string) (io.ReadCloser, error)
 	Put(context.Context, string, io.ReadSeeker) error
 } = (*Cacher)(nil)
+
+// StorageClient returns the underlying GCS client.
+func (c *Cacher) StorageClient() *storage.Client { return c.client }
+
+// BucketName returns the GCS bucket name.
+func (c *Cacher) BucketName() string { return c.bucket }

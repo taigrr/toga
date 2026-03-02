@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	cloudstorage "cloud.google.com/go/storage"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
 	"github.com/charmbracelet/fang"
 	"github.com/goproxy/goproxy"
 	"github.com/minio/minio-go/v7"
@@ -328,12 +330,31 @@ func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher gop
 		MinioClient() *minio.Client
 		BucketName() string
 	}
-	if mb, ok := cacher.(minioBackend); ok {
+	type gcsBackend interface {
+		StorageClient() *cloudstorage.Client
+		BucketName() string
+	}
+	type azureBackend interface {
+		AzblobClient() *azblob.Client
+		ContainerName() string
+	}
+	switch b := cacher.(type) {
+	case minioBackend:
 		lister = &web.ObjectStoreLister{
-			Client: mb.MinioClient(),
-			Bucket: mb.BucketName(),
+			Client: b.MinioClient(),
+			Bucket: b.BucketName(),
 		}
-	} else {
+	case gcsBackend:
+		lister = &web.GCSLister{
+			Client: b.StorageClient(),
+			Bucket: b.BucketName(),
+		}
+	case azureBackend:
+		lister = &web.AzureLister{
+			Client:    b.AzblobClient(),
+			Container: b.ContainerName(),
+		}
+	default:
 		lister = &web.DiskLister{Root: cfg.Disk.RootPath}
 	}
 
