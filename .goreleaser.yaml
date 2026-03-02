@@ -22,49 +22,29 @@ builds:
       - -s -w -X main.version={{.Version}}
 
 archives:
-  - format: tar.gz
+  - formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
       {{- .Os }}_
       {{- .Arch }}
       {{- if .Arm }}v{{ .Arm }}{{ end }}
-    format_overrides:
-      - goos: windows
-        format: zip
 
-dockers:
-  - image_templates:
-      - "ghcr.io/taigrr/toga:{{ .Version }}-amd64"
-      - "ghcr.io/taigrr/toga:latest-amd64"
-    use: buildx
-    dockerfile: Dockerfile.goreleaser
-    build_flag_templates:
-      - "--platform=linux/amd64"
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.source={{ .GitURL }}"
-  - image_templates:
-      - "ghcr.io/taigrr/toga:{{ .Version }}-arm64"
-      - "ghcr.io/taigrr/toga:latest-arm64"
-    use: buildx
-    goarch: arm64
-    dockerfile: Dockerfile.goreleaser
-    build_flag_templates:
-      - "--platform=linux/arm64"
-      - "--label=org.opencontainers.image.title={{ .ProjectName }}"
-      - "--label=org.opencontainers.image.version={{ .Version }}"
-      - "--label=org.opencontainers.image.source={{ .GitURL }}"
-
-docker_manifests:
-  - name_template: "ghcr.io/taigrr/toga:{{ .Version }}"
-    image_templates:
-      - "ghcr.io/taigrr/toga:{{ .Version }}-amd64"
-      - "ghcr.io/taigrr/toga:{{ .Version }}-arm64"
-  - name_template: "ghcr.io/taigrr/toga:latest"
-    image_templates:
-      - "ghcr.io/taigrr/toga:latest-amd64"
-      - "ghcr.io/taigrr/toga:latest-arm64"
+dockers_v2:
+  - images:
+      - "ghcr.io/taigrr/toga"
+    tags:
+      - "{{ .Version }}"
+      - latest
+    labels:
+      "org.opencontainers.image.title": "{{ .ProjectName }}"
+      "org.opencontainers.image.version": "{{ .Version }}"
+      "org.opencontainers.image.source": "{{ .GitURL }}"
 
 checksum:
   name_template: checksums.txt
