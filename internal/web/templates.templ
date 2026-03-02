@@ -275,7 +275,6 @@ templ moduleRow(m Module, prefix string) {
 				hx-get={ prefix + "/module?path=" + m.Path }
 				hx-target="#module-detail"
 				hx-swap="innerHTML"
-				hx-disabled-elt="find button"
 			>
 				{ m.Path }
 			</a>
@@ -315,7 +314,6 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 					hx-vals={ fmt.Sprintf(`{"module":"%s","version":""}`, modPath) }
 					hx-target="#module-list"
 					hx-swap="innerHTML"
-					hx-disabled-elt="find button"
 					hx-confirm="Delete all cached versions of this module?"
 					hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
 				>
@@ -335,7 +333,6 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 									hx-get={ prefix + "/file?name=" + modPath + "/@v/" + f.Name }
 									hx-target="#file-viewer"
 									hx-swap="innerHTML"
-									hx-disabled-elt="find button"
 									style="cursor:pointer"
 								>
 									{ f.Name }
