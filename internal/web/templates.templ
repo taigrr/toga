@@ -95,6 +95,8 @@ templ indexPage(prefix string) {
 			.header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
 			.header-bar h1 { margin-bottom: 0; }
 			.total-count { color: var(--pico-muted-color); font-size: 0.85rem; margin-bottom: 0.5rem; }
+			.htmx-indicator { display: none; }
+			.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
 		</style>
 	</head>
 	<body>
@@ -187,6 +189,7 @@ templ indexPage(prefix string) {
 			document.body.addEventListener('htmx:afterSwap', function() {
 				document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
 			});
+
 		</script>
 	</body>
 	</html>
@@ -378,5 +381,31 @@ templ fetchRecursiveResultFragment(results []FetchResult) {
 				}
 			</ul>
 		</details>
+	</div>
+}
+
+
+templ fetchPollingFragment(jobID string, prefix string) {
+	<div
+		hx-get={ prefix + "/fetch-status?id=" + jobID }
+		hx-trigger="every 500ms"
+		hx-swap="outerHTML"
+	>
+		<p aria-busy="true">Fetching dependencies…</p>
+	</div>
+}
+
+templ fetchPollingProgressFragment(jobID string, count int, latest string, prefix string) {
+	<div
+		hx-get={ prefix + "/fetch-status?id=" + jobID }
+		hx-trigger="every 500ms"
+		hx-swap="outerHTML"
+	>
+		<p aria-busy="true" style="margin-bottom:0.25rem">
+			Fetching dependencies… <strong>{ fmt.Sprintf("%d", count) }</strong> modules fetched
+		</p>
+		if latest != "" {
+			<small class="file-size">Latest: { latest }</small>
+		}
 	</div>
 }

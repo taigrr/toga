@@ -3,12 +3,17 @@ package web
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"path"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/goproxy/goproxy"
 	"golang.org/x/mod/modfile"
@@ -46,6 +51,8 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handleFileView(w, r)
 	case r.Method == http.MethodPost && sub == "/fetch":
 		h.handleFetch(w, r)
+	case r.Method == http.MethodGet && sub == "/fetch-status":
+		h.handleFetchStatus(w, r)
 	case r.Method == http.MethodPost && sub == "/delete":
 		h.handleDelete(w, r)
 	default:
@@ -137,6 +144,17 @@ type FetchResult struct {
 	Err    error
 }
 
+// fetchJob tracks an in-flight recursive fetch.
+type fetchJob struct {
+	count   atomic.Int32
+	latest  atomic.Value // string
+	mu      sync.Mutex
+	results []FetchResult
+	done    chan struct{}
+}
+
+var activeJobs sync.Map
+
 func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad request", http.StatusBadRequest)
@@ -167,11 +185,34 @@ func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Recursive fetch: get the module and all its dependencies.
+	// Recursive fetch: start background job, return polling UI.
 	h.Logger.Info("recursive fetch", "module", modPath, "version", version)
-	results := h.fetchRecursive(ctx, modPath, version)
+
+	b := make([]byte, 8)
+	rand.Read(b)
+	jobID := hex.EncodeToString(b)
+
+	job := &fetchJob{done: make(chan struct{})}
+	activeJobs.Store(jobID, job)
+
+	go func() {
+		defer func() {
+			close(job.done)
+			time.AfterFunc(60*time.Second, func() {
+				activeJobs.Delete(jobID)
+			})
+		}()
+		h.fetchRecursive(context.Background(), modPath, version, func(r FetchResult) {
+			job.mu.Lock()
+			job.results = append(job.results, r)
+			job.mu.Unlock()
+			job.count.Add(1)
+			job.latest.Store(r.Module)
+		})
+	}()
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fetchRecursiveResultFragment(results).Render(ctx, w)
+	fetchPollingFragment(jobID, h.Prefix).Render(ctx, w)
 }
 
 // fetchOne fetches a single module version, caches it, and returns the mod file bytes.
@@ -265,22 +306,25 @@ func (h *Handler) fetchModFileBytes(ctx context.Context, modPath, version string
 	return modData, FetchResult{Module: modPath + "@" + version}
 }
 
+// ProgressFunc is called after each module is fetched during recursive fetch.
+type ProgressFunc func(FetchResult)
+
 // fetchRecursive fetches a module and all its transitive dependencies.
-func (h *Handler) fetchRecursive(ctx context.Context, modPath, version string) []FetchResult {
-	var results []FetchResult
+func (h *Handler) fetchRecursive(ctx context.Context, modPath, version string, onProgress ProgressFunc) {
 	seen := make(map[string]bool)
-	h.fetchRecursiveWalk(ctx, modPath, version, seen, &results)
-	return results
+	h.fetchRecursiveWalk(ctx, modPath, version, seen, onProgress)
 }
 
-func (h *Handler) fetchRecursiveWalk(ctx context.Context, modPath, version string, seen map[string]bool, results *[]FetchResult) {
+func (h *Handler) fetchRecursiveWalk(ctx context.Context, modPath, version string, seen map[string]bool, onProgress ProgressFunc) {
 	if seen[modPath] {
 		return
 	}
 	seen[modPath] = true
 
 	modData, result := h.fetchModFileBytes(ctx, modPath, version)
-	*results = append(*results, result)
+	if onProgress != nil {
+		onProgress(result)
+	}
 	if result.Err != nil || modData == nil {
 		return
 	}
@@ -292,7 +336,34 @@ func (h *Handler) fetchRecursiveWalk(ctx context.Context, modPath, version strin
 	}
 
 	for _, req := range f.Require {
-		h.fetchRecursiveWalk(ctx, req.Mod.Path, req.Mod.Version, seen, results)
+		h.fetchRecursiveWalk(ctx, req.Mod.Path, req.Mod.Version, seen, onProgress)
+	}
+}
+
+func (h *Handler) handleFetchStatus(w http.ResponseWriter, r *http.Request) {
+	jobID := r.URL.Query().Get("id")
+	val, ok := activeJobs.Load(jobID)
+	if !ok {
+		http.Error(w, "job not found", http.StatusNotFound)
+		return
+	}
+
+	job := val.(*fetchJob)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	select {
+	case <-job.done:
+		// Job complete — return final results.
+		job.mu.Lock()
+		results := make([]FetchResult, len(job.results))
+		copy(results, job.results)
+		job.mu.Unlock()
+		fetchRecursiveResultFragment(results).Render(r.Context(), w)
+	default:
+		// Still running — return progress with continued polling.
+		count := int(job.count.Load())
+		latest, _ := job.latest.Load().(string)
+		fetchPollingProgressFragment(jobID, count, latest, h.Prefix).Render(r.Context(), w)
 	}
 }
 
