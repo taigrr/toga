@@ -25,6 +25,16 @@ func totalSize(m Module) string {
 	return formatSize(total)
 }
 
+func countSuccesses(results []FetchResult) int {
+	n := 0
+	for _, r := range results {
+		if r.Err == nil {
+			n++
+		}
+	}
+	return n
+}
+
 func nextPageURL(prefix, cursor, query string) string {
 	u := prefix + "/modules?cursor=" + url.QueryEscape(cursor)
 	if query != "" {
@@ -135,6 +145,10 @@ templ indexPage(prefix string) {
 					>
 						<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
 						<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
+						<label style="display:flex;align-items:center;gap:0.25rem;margin:0;white-space:nowrap">
+							<input type="checkbox" name="recursive" style="margin:0"/>
+							Include deps
+						</label>
 						<button type="submit">Fetch</button>
 					</form>
 					<div id="fetch-result"></div>
@@ -299,6 +313,11 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 								</a>
 							</td>
 							<td class="file-size">{ formatSize(f.Size) }</td>
+							<td>
+								if strings.HasSuffix(f.Name, ".zip") {
+									<a href={ templ.SafeURL(prefix + "/download?name=" + modPath + "/@v/" + f.Name) } download style="font-size:0.85rem">Download</a>
+								}
+							</td>
 						</tr>
 					}
 				</tbody>
@@ -317,7 +336,7 @@ templ fileViewFragment(name string, content string, lang string, truncated bool)
 			}
 		</div>
 		if strings.HasSuffix(name, ".zip") {
-			<p class="file-size">Binary file — download via proxy endpoint.</p>
+			<p class="file-size">Binary file — <a href={ templ.SafeURL("/" + name) } download>Download zip</a></p>
 		} else {
 			<pre><code class={ "language-" + lang }>{ content }</code></pre>
 		}
@@ -338,4 +357,26 @@ templ fetchResultFragment(modPath string, err error) {
 			Successfully fetched <strong>{ modPath }</strong>.
 		</p>
 	}
+}
+
+templ fetchRecursiveResultFragment(results []FetchResult) {
+	<div>
+		<p style="color:var(--pico-ins-color);margin-bottom:0.5rem">
+			Fetched { fmt.Sprintf("%d", countSuccesses(results)) } of { fmt.Sprintf("%d", len(results)) } modules.
+		</p>
+		<details>
+			<summary>Details</summary>
+			<ul style="font-size:0.85rem">
+				for _, r := range results {
+					<li>
+						if r.Err != nil {
+							<span style="color:var(--pico-del-color)">&#x2717; { r.Module }: { r.Err.Error() }</span>
+						} else {
+							<span style="color:var(--pico-ins-color)">&#x2713; { r.Module }</span>
+						}
+					</li>
+				}
+			</ul>
+		</details>
+	</div>
 }
