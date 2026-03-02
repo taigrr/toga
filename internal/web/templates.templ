@@ -154,7 +154,7 @@ templ indexPage(prefix string) {
 								<input type="checkbox" name="recursive" style="margin:0" checked/>
 								Include deps
 							</label>
-							<button type="submit" @click="fetching=true" :disabled="fetching">Fetch</button>
+							<button type="submit" :disabled="fetching" @click="$nextTick(() => fetching=true)">Fetch</button>
 						</form>
 						<div id="fetch-result"></div>
 					</article>
