@@ -136,7 +136,6 @@ templ indexPage(prefix string) {
 					>
 						<p aria-busy="true">Loading modules…</p>
 					</div>
-					<div id="module-detail"></div>
 				</div>
 				<div id="tab-fetch" style="display:none">
 					<article>
@@ -273,8 +272,9 @@ templ moduleRow(m Module, prefix string) {
 			<a
 				class="module-path"
 				hx-get={ prefix + "/module?path=" + m.Path }
-				hx-target="#module-detail"
-				hx-swap="innerHTML"
+				hx-target="closest tr"
+				hx-swap="afterend"
+				onclick="document.querySelectorAll('.module-detail-row').forEach(el => el.remove())"
 			>
 				{ m.Path }
 			</a>
@@ -304,7 +304,9 @@ templ loadMoreSentinel(cursor, query, prefix string) {
 }
 
 templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
-	<article>
+	<tr class="module-detail-row">
+		<td colspan="5">
+			<article>
 		<header>
 			<div style="display:flex;justify-content:space-between;align-items:center">
 				<strong>{ modPath }</strong>
@@ -315,7 +317,7 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 					hx-target="#module-list"
 					hx-swap="innerHTML"
 					hx-confirm="Delete all cached versions of this module?"
-					hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
+					hx-on::after-request="document.querySelectorAll('.module-detail-row').forEach(el => el.remove())"
 				>
 					Delete Module
 				</button>
@@ -350,7 +352,9 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 			</table>
 		}
 		<div id="file-viewer"></div>
-	</article>
+			</article>
+		</td>
+	</tr>
 }
 
 templ fileViewFragment(name string, content string, lang string, truncated bool) {
