@@ -1,0 +1,434 @@
+package web
+
+import (
+	"fmt"
+	"strings"
+)
+
+func formatSize(bytes int64) string {
+	switch {
+	case bytes >= 1<<20:
+		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(1<<20))
+	case bytes >= 1<<10:
+		return fmt.Sprintf("%.1f KB", float64(bytes)/float64(1<<10))
+	default:
+		return fmt.Sprintf("%d B", bytes)
+	}
+}
+
+templ indexPage(prefix string) {
+	<!DOCTYPE html>
+	<html lang="en">
+	<head>
+		<meta charset="utf-8"/>
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+		<title>Toga - Module Proxy</title>
+		<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+		<script defer src="https://unpkg.com/alpinejs@3.14.8/dist/cdn.min.js"></script>
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/github-dark.min.css"/>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/go.min.js"></script>
+		<style>
+			:root {
+				--bg: #0d1117;
+				--bg-card: #161b22;
+				--bg-hover: #1c2128;
+				--border: #30363d;
+				--text: #e6edf3;
+				--text-dim: #8b949e;
+				--accent: #58a6ff;
+				--accent-hover: #79c0ff;
+				--danger: #f85149;
+				--danger-hover: #ff7b72;
+				--success: #3fb950;
+				--radius: 6px;
+			}
+			* { box-sizing: border-box; margin: 0; padding: 0; }
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+				background: var(--bg);
+				color: var(--text);
+				line-height: 1.5;
+			}
+			.container { max-width: 1200px; margin: 0 auto; padding: 24px; }
+			header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 16px 0;
+				border-bottom: 1px solid var(--border);
+				margin-bottom: 24px;
+			}
+			header h1 { font-size: 24px; font-weight: 600; }
+			header h1 span { color: var(--accent); }
+			.tabs {
+				display: flex;
+				gap: 4px;
+				border-bottom: 1px solid var(--border);
+				margin-bottom: 24px;
+			}
+			.tab {
+				padding: 8px 16px;
+				cursor: pointer;
+				border: none;
+				background: none;
+				color: var(--text-dim);
+				font-size: 14px;
+				border-bottom: 2px solid transparent;
+				transition: all 0.15s;
+			}
+			.tab:hover { color: var(--text); }
+			.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+			.toolbar {
+				display: flex;
+				gap: 12px;
+				margin-bottom: 16px;
+				align-items: center;
+				flex-wrap: wrap;
+			}
+			input[type="text"], input[type="search"] {
+				background: var(--bg-card);
+				border: 1px solid var(--border);
+				color: var(--text);
+				padding: 8px 12px;
+				border-radius: var(--radius);
+				font-size: 14px;
+				flex: 1;
+				min-width: 200px;
+			}
+			input:focus { outline: none; border-color: var(--accent); }
+			button, .btn {
+				padding: 8px 16px;
+				border: 1px solid var(--border);
+				border-radius: var(--radius);
+				cursor: pointer;
+				font-size: 14px;
+				background: var(--bg-card);
+				color: var(--text);
+				transition: all 0.15s;
+				white-space: nowrap;
+			}
+			button:hover, .btn:hover { background: var(--bg-hover); border-color: var(--text-dim); }
+			.btn-primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+			.btn-primary:hover { background: #388bfd; }
+			.btn-danger { color: var(--danger); border-color: var(--danger); }
+			.btn-danger:hover { background: rgba(248,81,73,0.1); }
+			.module-table { width: 100%; border-collapse: collapse; }
+			.module-table th, .module-table td {
+				text-align: left;
+				padding: 10px 12px;
+				border-bottom: 1px solid var(--border);
+			}
+			.module-table th {
+				font-size: 12px;
+				text-transform: uppercase;
+				color: var(--text-dim);
+				font-weight: 600;
+			}
+			.module-table tr:hover { background: var(--bg-hover); }
+			.module-path {
+				color: var(--accent);
+				cursor: pointer;
+				text-decoration: none;
+			}
+			.module-path:hover { text-decoration: underline; color: var(--accent-hover); }
+			.version-badge {
+				display: inline-block;
+				padding: 2px 8px;
+				background: rgba(88,166,255,0.1);
+				color: var(--accent);
+				border-radius: 12px;
+				font-size: 12px;
+				margin-right: 4px;
+			}
+			.detail-panel {
+				background: var(--bg-card);
+				border: 1px solid var(--border);
+				border-radius: var(--radius);
+				padding: 20px;
+				margin-top: 16px;
+			}
+			.detail-header {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				margin-bottom: 16px;
+			}
+			.file-list { list-style: none; }
+			.file-list li {
+				display: flex;
+				justify-content: space-between;
+				align-items: center;
+				padding: 8px 12px;
+				border-bottom: 1px solid var(--border);
+			}
+			.file-list li:last-child { border-bottom: none; }
+			.file-list a { color: var(--accent); text-decoration: none; }
+			.file-list a:hover { text-decoration: underline; }
+			.file-size { color: var(--text-dim); font-size: 13px; }
+			pre code {
+				border-radius: var(--radius);
+				font-size: 13px;
+			}
+			.fetch-form {
+				display: flex;
+				gap: 8px;
+				align-items: center;
+				flex-wrap: wrap;
+			}
+			.alert {
+				padding: 12px 16px;
+				border-radius: var(--radius);
+				margin-top: 12px;
+				font-size: 14px;
+			}
+			.alert-success { background: rgba(63,185,80,0.1); border: 1px solid var(--success); color: var(--success); }
+			.alert-error { background: rgba(248,81,73,0.1); border: 1px solid var(--danger); color: var(--danger); }
+			.empty-state {
+				text-align: center;
+				padding: 60px 20px;
+				color: var(--text-dim);
+			}
+			.empty-state h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+			.log-link { color: var(--text-dim); text-decoration: none; font-size: 14px; }
+			.log-link:hover { color: var(--accent); }
+			.checkbox-cell { width: 32px; text-align: center; }
+			input[type="checkbox"] {
+				width: 16px;
+				height: 16px;
+				accent-color: var(--accent);
+			}
+			.htmx-indicator { display: none; }
+			.htmx-request .htmx-indicator { display: inline; }
+			.spinner { color: var(--text-dim); font-size: 13px; }
+			@media (max-width: 768px) {
+				.container { padding: 16px; }
+				.toolbar { flex-direction: column; }
+				input[type="text"], input[type="search"] { min-width: 100%; }
+			}
+		</style>
+	</head>
+	<body>
+		<div class="container" data-ui-prefix={ prefix }>
+			<header>
+				<h1>🏛️ <span>Toga</span></h1>
+				<a href="/logs/" class="log-link">📋 Live Logs</a>
+			</header>
+			<div class="tabs">
+				<button class="tab active" onclick="switchTab(this, 'modules')">Modules</button>
+				<button class="tab" onclick="switchTab(this, 'fetch')">Fetch Package</button>
+			</div>
+			<div id="tab-modules">
+				<div class="toolbar" x-data="{ hasSelection: false }">
+					<input
+						type="search"
+						name="q"
+						placeholder="Filter modules..."
+						hx-get={ prefix + "/modules" }
+						hx-trigger="input changed delay:300ms, search"
+						hx-target="#module-list"
+						hx-include="this"
+					/>
+					<button
+						class="btn-danger btn"
+						x-show="hasSelection"
+						x-cloak
+						onclick="deleteSelected()"
+					>
+						Delete Selected
+					</button>
+				</div>
+				<div id="module-list"
+					hx-get={ prefix + "/modules" }
+					hx-trigger="load"
+				>
+					<div class="spinner">Loading modules...</div>
+				</div>
+				<div id="module-detail"></div>
+			</div>
+			<div id="tab-fetch" style="display:none">
+				<div class="detail-panel">
+					<h3 style="margin-bottom:16px">Fetch a Go Module</h3>
+					<form class="fetch-form"
+						hx-post={ prefix + "/fetch" }
+						hx-target="#fetch-result"
+						hx-swap="innerHTML"
+					>
+						<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
+						<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
+						<button type="submit" class="btn btn-primary">Fetch</button>
+					</form>
+					<div id="fetch-result"></div>
+				</div>
+			</div>
+		</div>
+		<script>
+			var uiPrefix = document.querySelector('[data-ui-prefix]')?.dataset.uiPrefix || '/-/ui';
+			function switchTab(el, tab) {
+				document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+				el.classList.add('active');
+				document.getElementById('tab-modules').style.display = tab === 'modules' ? '' : 'none';
+				document.getElementById('tab-fetch').style.display = tab === 'fetch' ? '' : 'none';
+			}
+			function deleteSelected() {
+				const checked = document.querySelectorAll('input[name="selected"]:checked');
+				if (checked.length === 0) return;
+				if (!confirm('Delete ' + checked.length + ' selected module(s)?')) return;
+
+				const form = document.createElement('form');
+				form.method = 'POST';
+				form.action = uiPrefix + '/delete';
+				checked.forEach(cb => {
+					const input = document.createElement('input');
+					input.type = 'hidden';
+					input.name = 'selected';
+					input.value = cb.value;
+					form.appendChild(input);
+				});
+				document.body.appendChild(form);
+
+				htmx.ajax('POST', uiPrefix + '/delete', {
+					source: form,
+					target: '#module-list'
+				}).then(() => form.remove());
+			}
+			document.body.addEventListener('htmx:afterSwap', function(evt) {
+				document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
+			});
+		</script>
+	</body>
+	</html>
+}
+
+templ moduleListFragment(modules []Module, prefix string) {
+	if len(modules) == 0 {
+		<div class="empty-state">
+			<h3>No modules cached</h3>
+			<p>Fetch a package to get started, or use toga as your GOPROXY.</p>
+		</div>
+	} else {
+		<form id="module-form" x-data={ fmt.Sprintf("{ allChecked: false, toggleAll() { const cbs = document.querySelectorAll('input[name=\"selected\"]'); cbs.forEach(cb => cb.checked = this.allChecked); } }") }>
+			<table class="module-table">
+				<thead>
+					<tr>
+						<th class="checkbox-cell">
+							<input type="checkbox" x-model="allChecked" @change="toggleAll()"/>
+						</th>
+						<th>Module</th>
+						<th>Versions</th>
+						<th>Latest</th>
+						<th>Size</th>
+					</tr>
+				</thead>
+				<tbody>
+					for _, m := range modules {
+						<tr>
+							<td class="checkbox-cell">
+								<input type="checkbox" name="selected" value={ m.Path + "@" }/>
+							</td>
+							<td>
+								<a class="module-path"
+									hx-get={ prefix + "/module?path=" + m.Path }
+									hx-target="#module-detail"
+									hx-swap="innerHTML"
+								>
+									{ m.Path }
+								</a>
+							</td>
+							<td>
+								{ fmt.Sprintf("%d", len(m.Versions)) }
+							</td>
+							<td>
+								if len(m.Versions) > 0 {
+									<span class="version-badge">
+										{ m.Versions[len(m.Versions)-1].Version }
+									</span>
+								}
+							</td>
+							<td class="file-size">
+								{ totalSize(m) }
+							</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</form>
+	}
+}
+
+func totalSize(m Module) string {
+	var total int64
+	for _, v := range m.Versions {
+		total += v.Size
+	}
+	return formatSize(total)
+}
+
+templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
+	<div class="detail-panel">
+		<div class="detail-header">
+			<h3>{ modPath }</h3>
+			<button class="btn btn-danger"
+				hx-post={ prefix + "/delete" }
+				hx-vals={ fmt.Sprintf(`{"module":"%s","version":""}`, modPath) }
+				hx-target="#module-list"
+				hx-swap="innerHTML"
+				hx-confirm="Delete all cached versions of this module?"
+				hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
+			>
+				Delete Module
+			</button>
+		</div>
+		if len(files) == 0 {
+			<p style="color:var(--text-dim)">No cached files found.</p>
+		} else {
+			<ul class="file-list">
+				for _, f := range files {
+					<li>
+						<a
+							hx-get={ prefix + "/file?name=" + modPath + "/@v/" + f.Name }
+							hx-target="#file-viewer"
+							hx-swap="innerHTML"
+						>
+							{ f.Name }
+						</a>
+						<span class="file-size">{ formatSize(f.Size) }</span>
+					</li>
+				}
+			</ul>
+		}
+		<div id="file-viewer" style="margin-top:16px"></div>
+	</div>
+}
+
+templ fileViewFragment(name string, content string, lang string, truncated bool) {
+	<div style="position:relative">
+		<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+			<span style="color:var(--text-dim);font-size:13px">{ name }</span>
+			if truncated {
+				<span style="color:var(--danger);font-size:12px">Truncated to 1 MB</span>
+			}
+		</div>
+		if strings.HasSuffix(name, ".zip") {
+			<p style="color:var(--text-dim)">Binary file — download via proxy endpoint.</p>
+		} else {
+			<pre><code class={ "language-" + lang }>{ content }</code></pre>
+		}
+	</div>
+}
+
+templ fetchResultFragment(modPath string, err error) {
+	if err != nil {
+		<div class="alert alert-error">
+			Failed to fetch
+			if modPath != "" {
+				<strong>{ modPath }</strong>:
+			}
+			{ err.Error() }
+		</div>
+	} else {
+		<div class="alert alert-success">
+			Successfully fetched <strong>{ modPath }</strong>. It should now appear in the modules list.
+		</div>
+	}
+}

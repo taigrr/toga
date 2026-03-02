@@ -31,6 +31,7 @@ import (
 	"github.com/taigrr/toga/internal/storage/memory"
 	miniocacher "github.com/taigrr/toga/internal/storage/minio"
 	s3cacher "github.com/taigrr/toga/internal/storage/s3"
+	"github.com/taigrr/toga/internal/web"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
@@ -134,7 +135,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		proxy.Cacher = cacher
 	}
 
-	handler := buildHandler(proxy, cfg, logger)
+	handler := buildHandler(proxy, fetcher, cacher, cfg, logger)
 
 	srv := &http.Server{
 		Handler:           handler,
@@ -281,7 +282,7 @@ func listen(cfg *config.Config) (net.Listener, error) {
 	return net.Listen("tcp", cfg.Port)
 }
 
-func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logger) http.Handler {
+func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher goproxy.Cacher, cfg *config.Config, logger *slog.Logger) http.Handler {
 	var handler http.Handler = proxy
 
 	// Apply protocol worker semaphore.
@@ -319,6 +320,17 @@ func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logge
 	}
 	mux.HandleFunc(logPath+"/", browser.LogSocketViewHandler)
 	mux.HandleFunc(logPath+"/ws", ws.LogSocketHandler)
+
+	// Web UI for module browsing
+	uiHandler := &web.Handler{
+		Lister:  &web.DiskLister{Root: cfg.Disk.RootPath},
+		Fetcher: fetcher,
+		Cacher:  cacher,
+		Logger:  logger,
+		Prefix:  "/-/ui",
+	}
+	mux.Handle("/-/ui/", uiHandler)
+	mux.Handle("/-/ui", http.RedirectHandler("/-/ui/", http.StatusMovedPermanently))
 
 	// Homepage
 	if cfg.HomeTemplatePath != "" {
