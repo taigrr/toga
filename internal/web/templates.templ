@@ -46,20 +46,20 @@ func nextPageURL(prefix, cursor, query string) string {
 templ indexPage(prefix string) {
 	<!DOCTYPE html>
 	<html lang="en" data-theme="dark">
-	<head>
-		<meta charset="utf-8"/>
-		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-		<title>Toga - Module Proxy</title>
-		<link rel="icon" type="image/png" sizes="32x32" href={ prefix + "/static/favicon-32.png" }/>
-		<link rel="icon" type="image/png" sizes="16x16" href={ prefix + "/static/favicon-16.png" }/>
-		<link rel="apple-touch-icon" href={ prefix + "/static/apple-touch-icon.png" }/>
-		<link rel="stylesheet" href={ prefix + "/static/pico.min.css" }/>
-		<link rel="stylesheet" href={ prefix + "/static/github-dark.min.css" }/>
-		<script src={ prefix + "/static/htmx.min.js" }></script>
-		<script defer src={ prefix + "/static/alpine.min.js" }></script>
-		<script src={ prefix + "/static/highlight.min.js" }></script>
-		<script src={ prefix + "/static/highlight-go.min.js" }></script>
-		<style>
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>Toga - Module Proxy</title>
+			<link rel="icon" type="image/png" sizes="32x32" href={ prefix + "/static/favicon-32.png" }/>
+			<link rel="icon" type="image/png" sizes="16x16" href={ prefix + "/static/favicon-16.png" }/>
+			<link rel="apple-touch-icon" href={ prefix + "/static/apple-touch-icon.png" }/>
+			<link rel="stylesheet" href={ prefix + "/static/pico.min.css" }/>
+			<link rel="stylesheet" href={ prefix + "/static/github-dark.min.css" }/>
+			<script src={ prefix + "/static/htmx.min.js" }></script>
+			<script defer src={ prefix + "/static/alpine.min.js" }></script>
+			<script src={ prefix + "/static/highlight.min.js" }></script>
+			<script src={ prefix + "/static/highlight-go.min.js" }></script>
+			<style>
 			pre code { border-radius: var(--pico-border-radius); font-size: 0.85rem; }
 			.version-badge {
 				display: inline-block;
@@ -98,66 +98,69 @@ templ indexPage(prefix string) {
 			.htmx-indicator { display: none; }
 			.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
 		</style>
-	</head>
-	<body>
-		<main class="container" data-ui-prefix={ prefix }>
-			<div class="header-bar">
-				<h1 style="display:flex;align-items:center;gap:0.5rem"><img src={ prefix + "/static/logo-192.png" } width="36" height="36" alt="Toga"/> Toga</h1>
-				<a href="/logs/">📋 Live Logs</a>
-			</div>
-			<div class="tab-bar">
-				<button class="active" onclick="switchTab(this, 'modules')">Modules</button>
-				<button onclick="switchTab(this, 'fetch')">Fetch Package</button>
-			</div>
-			<div id="tab-modules">
-				<div class="toolbar" x-data="{ hasSelection: false }">
-					<input
-						type="search"
-						name="q"
-						placeholder="Filter modules..."
+		</head>
+		<body>
+			<main class="container" data-ui-prefix={ prefix }>
+				<div class="header-bar">
+					<h1 style="display:flex;align-items:center;gap:0.5rem"><img src={ prefix + "/static/logo-192.png" } width="36" height="36" alt="Toga"/> Toga</h1>
+					<a href="/logs/">📋 Live Logs</a>
+				</div>
+				<div class="tab-bar">
+					<button class="active" onclick="switchTab(this, 'modules')">Modules</button>
+					<button onclick="switchTab(this, 'fetch')">Fetch Package</button>
+				</div>
+				<div id="tab-modules">
+					<div class="toolbar" x-data="{ hasSelection: false }">
+						<input
+							type="search"
+							name="q"
+							placeholder="Filter modules..."
+							hx-get={ prefix + "/modules" }
+							hx-trigger="input changed delay:300ms, search"
+							hx-target="#module-list"
+							hx-include="this"
+						/>
+						<button
+							class="outline secondary"
+							x-show="hasSelection"
+							x-cloak
+							onclick="deleteSelected()"
+						>
+							Delete Selected
+						</button>
+					</div>
+					<div
+						id="module-list"
 						hx-get={ prefix + "/modules" }
-						hx-trigger="input changed delay:300ms, search"
-						hx-target="#module-list"
-						hx-include="this"
-					/>
-					<button
-						class="outline secondary"
-						x-show="hasSelection"
-						x-cloak
-						onclick="deleteSelected()"
+						hx-trigger="load"
 					>
-						Delete Selected
-					</button>
+						<p aria-busy="true">Loading modules…</p>
+					</div>
+					<div id="module-detail"></div>
 				</div>
-				<div id="module-list"
-					hx-get={ prefix + "/modules" }
-					hx-trigger="load"
-				>
-					<p aria-busy="true">Loading modules…</p>
+				<div id="tab-fetch" style="display:none">
+					<article>
+						<header><strong>Fetch a Go Module</strong></header>
+						<form
+							class="fetch-form"
+							hx-post={ prefix + "/fetch" }
+							hx-target="#fetch-result"
+							hx-swap="innerHTML"
+							x-data="{ fetching: false }"
+						>
+							<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
+							<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
+							<label style="display:flex;align-items:center;gap:0.25rem;margin:0;white-space:nowrap">
+								<input type="checkbox" name="recursive" style="margin:0" checked/>
+								Include deps
+							</label>
+							<button type="submit" @click="fetching=true" :disabled="fetching">Fetch</button>
+						</form>
+						<div id="fetch-result"></div>
+					</article>
 				</div>
-				<div id="module-detail"></div>
-			</div>
-			<div id="tab-fetch" style="display:none">
-				<article>
-					<header><strong>Fetch a Go Module</strong></header>
-					<form class="fetch-form"
-						hx-post={ prefix + "/fetch" }
-						hx-target="#fetch-result"
-						hx-swap="innerHTML"
-					>
-						<input type="text" name="module" placeholder="github.com/user/repo" style="flex:2"/>
-						<input type="text" name="version" placeholder="v1.0.0 or latest" style="flex:1"/>
-						<label style="display:flex;align-items:center;gap:0.25rem;margin:0;white-space:nowrap">
-							<input type="checkbox" name="recursive" style="margin:0" checked/>
-							Include deps
-						</label>
-						<button type="submit">Fetch</button>
-					</form>
-					<div id="fetch-result"></div>
-				</article>
-			</div>
-		</main>
-		<script>
+			</main>
+			<script>
 			var uiPrefix = document.querySelector('[data-ui-prefix]')?.dataset.uiPrefix || '/-/ui';
 			function switchTab(el, tab) {
 				document.querySelectorAll('.tab-bar button').forEach(t => t.classList.remove('active'));
@@ -191,7 +194,7 @@ templ indexPage(prefix string) {
 			});
 
 		</script>
-	</body>
+		</body>
 	</html>
 }
 
@@ -249,10 +252,12 @@ templ moduleRow(m Module, prefix string) {
 	<tr>
 		<td><input type="checkbox" name="selected" value={ m.Path + "@" }/></td>
 		<td>
-			<a class="module-path"
+			<a
+				class="module-path"
 				hx-get={ prefix + "/module?path=" + m.Path }
 				hx-target="#module-detail"
 				hx-swap="innerHTML"
+				hx-disabled-elt="find button"
 			>
 				{ m.Path }
 			</a>
@@ -286,11 +291,13 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 		<header>
 			<div style="display:flex;justify-content:space-between;align-items:center">
 				<strong>{ modPath }</strong>
-				<button class="outline secondary"
+				<button
+					class="outline secondary"
 					hx-post={ prefix + "/delete" }
 					hx-vals={ fmt.Sprintf(`{"module":"%s","version":""}`, modPath) }
 					hx-target="#module-list"
 					hx-swap="innerHTML"
+					hx-disabled-elt="find button"
 					hx-confirm="Delete all cached versions of this module?"
 					hx-on::after-request="document.getElementById('module-detail').innerHTML=''"
 				>
@@ -310,6 +317,7 @@ templ moduleDetailFragment(modPath string, files []FileEntry, prefix string) {
 									hx-get={ prefix + "/file?name=" + modPath + "/@v/" + f.Name }
 									hx-target="#file-viewer"
 									hx-swap="innerHTML"
+									hx-disabled-elt="find button"
 									style="cursor:pointer"
 								>
 									{ f.Name }
@@ -360,6 +368,7 @@ templ fetchResultFragment(modPath string, err error) {
 			Successfully fetched <strong>{ modPath }</strong>.
 		</p>
 	}
+	<span x-init="fetching=false" style="display:none"></span>
 }
 
 templ fetchRecursiveResultFragment(results []FetchResult) {
@@ -381,9 +390,9 @@ templ fetchRecursiveResultFragment(results []FetchResult) {
 				}
 			</ul>
 		</details>
+		<span x-init="fetching=false" style="display:none"></span>
 	</div>
 }
-
 
 templ fetchPollingFragment(jobID string, prefix string) {
 	<div
