@@ -5,6 +5,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -18,24 +19,26 @@ type Config struct {
 	TLSCertFile string
 	TLSKeyFile  string
 
-	// Storage backend: disk, s3, minio, gcs, azureblob
+	// Storage backend: memory, disk, s3, minio, gcs, azureblob
 	StorageType string
 
 	// Go environment
-	GoBinary   string
-	GoModCache string
-	GoProxy    string
-	GoPrivate  string
-	GoNoProxy  string
-	GoSumDB    string
-	GoNoSumDB  string
+	GoBinary        string
+	GoBinaryEnvVars []string
+	GoModCache      string
+	GoProxy         string
+	GoPrivate       string
+	GoNoProxy       string
+	GoSumDB         string
+	GoNoSumDB       string
 
 	// Timeouts
 	Timeout         time.Duration
 	ShutdownTimeout time.Duration
 
 	// Logging
-	LogLevel string
+	LogLevel  string
+	LogFormat string
 
 	// Storage configs
 	Disk      DiskConfig
@@ -52,6 +55,27 @@ type Config struct {
 
 	// Network mode: strict (upstream only), offline (cache only), fallback (cache then upstream)
 	NetworkMode string
+
+	// Concurrency limits
+	GoGetWorkers    int
+	ProtocolWorkers int
+
+	// Auth for private repos
+	NETRCPath   string
+	GithubToken string
+
+	// Homepage and robots
+	HomeTemplatePath string
+	RobotsFile       string
+
+	// Observability
+	EnablePprof bool
+	PprofPort   string
+
+	// Tracing (OpenTelemetry)
+	TraceExporter   string // "jaeger", "otlp", or "" (disabled)
+	TraceEndpoint   string
+	TraceSampleRate float64
 }
 
 // DiskConfig holds configuration for the filesystem storage backend.
@@ -109,8 +133,14 @@ func Init(configFile string) error {
 
 	if configFile != "" {
 		cm.SetConfigFile(configFile)
+		if ct := configTypeFromExt(configFile); ct != "" {
+			if err := cm.SetConfigType(ct); err != nil {
+				return fmt.Errorf("set config type: %w", err)
+			}
+		}
 	} else {
 		cm.SetConfigName("toga")
+		cm.SetConfigDir(".")
 		if err := cm.SetConfigType("toml"); err != nil {
 			return fmt.Errorf("set config type: %w", err)
 		}
@@ -133,6 +163,7 @@ func setDefaults() {
 	cm.SetDefault("tls_key", "")
 	cm.SetDefault("storage_type", "disk")
 	cm.SetDefault("go_binary", "go")
+	cm.SetDefault("go_binary_env_vars", "")
 	cm.SetDefault("go_mod_cache", "")
 	cm.SetDefault("go_proxy", "")
 	cm.SetDefault("go_private", "")
@@ -142,11 +173,33 @@ func setDefaults() {
 	cm.SetDefault("timeout", "300s")
 	cm.SetDefault("shutdown_timeout", "30s")
 	cm.SetDefault("log_level", "info")
+	cm.SetDefault("log_format", "json")
 	cm.SetDefault("path_prefix", "")
 	cm.SetDefault("basic_auth_user", "")
 	cm.SetDefault("basic_auth_pass", "")
 	cm.SetDefault("network_mode", "fallback")
 	cm.SetDefault("sum_dbs", "")
+
+	// Concurrency
+	cm.SetDefault("goget_workers", "10")
+	cm.SetDefault("protocol_workers", "30")
+
+	// Auth
+	cm.SetDefault("netrc_path", "")
+	cm.SetDefault("github_token", "")
+
+	// Homepage and robots
+	cm.SetDefault("home_template_path", "")
+	cm.SetDefault("robots_file", "")
+
+	// Observability
+	cm.SetDefault("enable_pprof", "false")
+	cm.SetDefault("pprof_port", ":3001")
+
+	// Tracing
+	cm.SetDefault("trace_exporter", "")
+	cm.SetDefault("trace_endpoint", "")
+	cm.SetDefault("trace_sample_rate", "1.0")
 
 	// Flat keys for env var compatibility (TOGA_DISK_ROOT_PATH, not TOGA_DISK.ROOT_PATH).
 	cm.SetDefault("disk_root_path", fmt.Sprintf("%s/toga-storage", os.TempDir()))
@@ -171,6 +224,20 @@ func setDefaults() {
 	cm.SetDefault("azureblob_container_name", "")
 }
 
+// configTypeFromExt returns "toml", "yaml", or "json" based on the file extension.
+func configTypeFromExt(path string) string {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".toml":
+		return "toml"
+	case ".yaml", ".yml":
+		return "yaml"
+	case ".json":
+		return "json"
+	default:
+		return ""
+	}
+}
+
 // Load builds a Config from JETY state. Call Init first.
 // Panics if Init has not been called.
 func Load() *Config {
@@ -178,25 +245,54 @@ func Load() *Config {
 		panic("config: Load called before Init")
 	}
 	cfg := &Config{
-		Port:            cm.GetString("port"),
-		UnixSocket:      cm.GetString("unix_socket"),
-		TLSCertFile:     cm.GetString("tls_cert"),
-		TLSKeyFile:      cm.GetString("tls_key"),
-		StorageType:     strings.ToLower(cm.GetString("storage_type")),
-		GoBinary:        cm.GetString("go_binary"),
-		GoModCache:      cm.GetString("go_mod_cache"),
-		GoProxy:         cm.GetString("go_proxy"),
-		GoPrivate:       cm.GetString("go_private"),
-		GoNoProxy:       cm.GetString("go_noproxy"),
-		GoSumDB:         cm.GetString("go_sumdb"),
-		GoNoSumDB:       cm.GetString("go_nosumdb"),
-		Timeout:         cm.GetDuration("timeout"),
-		ShutdownTimeout: cm.GetDuration("shutdown_timeout"),
-		LogLevel:        cm.GetString("log_level"),
-		PathPrefix:      cm.GetString("path_prefix"),
-		BasicAuthUser:   cm.GetString("basic_auth_user"),
-		BasicAuthPass:   cm.GetString("basic_auth_pass"),
-		NetworkMode:     cm.GetString("network_mode"),
+		Port:             cm.GetString("port"),
+		UnixSocket:       cm.GetString("unix_socket"),
+		TLSCertFile:      cm.GetString("tls_cert"),
+		TLSKeyFile:       cm.GetString("tls_key"),
+		StorageType:      strings.ToLower(cm.GetString("storage_type")),
+		GoBinary:         cm.GetString("go_binary"),
+		GoModCache:       cm.GetString("go_mod_cache"),
+		GoProxy:          cm.GetString("go_proxy"),
+		GoPrivate:        cm.GetString("go_private"),
+		GoNoProxy:        cm.GetString("go_noproxy"),
+		GoSumDB:          cm.GetString("go_sumdb"),
+		GoNoSumDB:        cm.GetString("go_nosumdb"),
+		Timeout:          cm.GetDuration("timeout"),
+		ShutdownTimeout:  cm.GetDuration("shutdown_timeout"),
+		LogLevel:         cm.GetString("log_level"),
+		LogFormat:        strings.ToLower(cm.GetString("log_format")),
+		PathPrefix:       cm.GetString("path_prefix"),
+		BasicAuthUser:    cm.GetString("basic_auth_user"),
+		BasicAuthPass:    cm.GetString("basic_auth_pass"),
+		NetworkMode:      strings.ToLower(cm.GetString("network_mode")),
+		GoGetWorkers:     cm.GetInt("goget_workers"),
+		ProtocolWorkers:  cm.GetInt("protocol_workers"),
+		NETRCPath:        cm.GetString("netrc_path"),
+		GithubToken:      cm.GetString("github_token"),
+		HomeTemplatePath: cm.GetString("home_template_path"),
+		RobotsFile:       cm.GetString("robots_file"),
+		EnablePprof:      cm.GetBool("enable_pprof"),
+		PprofPort:        cm.GetString("pprof_port"),
+		TraceExporter:    strings.ToLower(cm.GetString("trace_exporter")),
+		TraceEndpoint:    cm.GetString("trace_endpoint"),
+		TraceSampleRate: func() float64 {
+			// jety doesn't have GetFloat64, parse manually
+			s := cm.GetString("trace_sample_rate")
+			var f float64
+			if _, err := fmt.Sscanf(s, "%f", &f); err != nil {
+				return 1.0
+			}
+			return f
+		}(),
+	}
+
+	// Go binary env vars (semicolon-separated in env, array in TOML)
+	if s := cm.GetString("go_binary_env_vars"); s != "" {
+		for _, part := range strings.Split(s, ";") {
+			if trimmed := strings.TrimSpace(part); trimmed != "" {
+				cfg.GoBinaryEnvVars = append(cfg.GoBinaryEnvVars, trimmed)
+			}
+		}
 	}
 
 	// Sum DBs
