@@ -9,7 +9,7 @@ require (
 	github.com/goproxy/goproxy v0.25.0
 	github.com/minio/minio-go/v7 v7.0.98
 	github.com/spf13/cobra v1.10.2
-	github.com/taigrr/jety v0.2.2-0.20260301234517-91b69246fa3c
+	github.com/taigrr/jety v0.3.0
 	google.golang.org/api v0.269.0
 )
 
