@@ -1,28 +1,126 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 380" width="400" height="380">
   <defs>
-    <linearGradient id="g" x1="0.3" y1="0" x2="0.7" y2="1">
-      <stop offset="0%" stop-color="#818CF8"/>
-      <stop offset="100%" stop-color="#6366F1"/>
+    <linearGradient id="togaFold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#f5f0e0"/>
+      <stop offset="40%" stop-color="#faf6e8"/>
+      <stop offset="60%" stop-color="#eee8d0"/>
+      <stop offset="100%" stop-color="#f5f0e0"/>
     </linearGradient>
+    <linearGradient id="togaShadow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#e8e0c8"/>
+      <stop offset="100%" stop-color="#f5f0e0"/>
+    </linearGradient>
+    <linearGradient id="sashGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#c0302a"/>
+      <stop offset="50%" stop-color="#d43a34"/>
+      <stop offset="100%" stop-color="#b02824"/>
+    </linearGradient>
+    <radialGradient id="bodyGrad" cx="0.5" cy="0.3" r="0.55">
+      <stop offset="0%" stop-color="#6ad7e5"/>
+      <stop offset="100%" stop-color="#4db8c7"/>
+    </radialGradient>
   </defs>
-  <!-- Pediment -->
-  <path d="M96 190 L256 70 L416 190" fill="url(#g)"/>
-  <!-- Entablature -->
-  <rect x="80" y="190" width="352" height="28" rx="4" fill="url(#g)"/>
-  <!-- Columns -->
-  <rect x="108" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
-  <rect x="200" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
-  <rect x="272" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
-  <rect x="364" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
-  <!-- Fluting -->
-  <rect x="122" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="132" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="214" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="224" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="286" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="296" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="378" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <rect x="388" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
-  <!-- Stylobate -->
-  <rect x="80" y="412" width="352" height="28" rx="4" fill="url(#g)"/>
+
+  <!-- Shadow on ground -->
+  <ellipse cx="200" cy="355" rx="95" ry="12" fill="#00000018"/>
+
+  <!-- Left leg -->
+  <rect x="158" y="310" width="22" height="48" rx="11" fill="#5bc8d8"/>
+  <!-- Right leg -->
+  <rect x="220" y="310" width="22" height="48" rx="11" fill="#5bc8d8"/>
+
+  <!-- Main body - squat dumpy jellybean -->
+  <ellipse cx="200" cy="190" rx="115" ry="130" fill="url(#bodyGrad)"/>
+
+  <!-- Ears -->
+  <ellipse cx="118" cy="78" rx="14" ry="20" fill="#5bc8d8" stroke="#4db8c7" stroke-width="1"/>
+  <ellipse cx="118" cy="78" rx="7" ry="12" fill="#3a9aa8"/>
+  <ellipse cx="282" cy="78" rx="14" ry="20" fill="#5bc8d8" stroke="#4db8c7" stroke-width="1"/>
+  <ellipse cx="282" cy="78" rx="7" ry="12" fill="#3a9aa8"/>
+
+  <!-- Laurel wreath -->
+  <path d="M 155 80 C 145 65, 150 48, 165 40 C 170 48, 168 62, 165 70" fill="#5a9e3e" opacity="0.9"/>
+  <path d="M 145 98 C 132 86, 129 68, 139 55 C 147 62, 147 78, 145 88" fill="#5a9e3e" opacity="0.9"/>
+  <path d="M 140 118 C 123 110, 115 94, 123 80 C 133 85, 135 100, 137 110" fill="#5a9e3e" opacity="0.85"/>
+  <path d="M 143 138 C 125 134, 111 120, 115 105 C 127 107, 133 120, 139 130" fill="#5a9e3e" opacity="0.8"/>
+  <path d="M 245 80 C 255 65, 250 48, 235 40 C 230 48, 232 62, 235 70" fill="#5a9e3e" opacity="0.9"/>
+  <path d="M 255 98 C 268 86, 271 68, 261 55 C 253 62, 253 78, 255 88" fill="#5a9e3e" opacity="0.9"/>
+  <path d="M 260 118 C 277 110, 285 94, 277 80 C 267 85, 265 100, 263 110" fill="#5a9e3e" opacity="0.85"/>
+  <path d="M 257 138 C 275 134, 289 120, 285 105 C 273 107, 267 120, 261 130" fill="#5a9e3e" opacity="0.8"/>
+
+  <!-- Eyes -->
+  <ellipse cx="172" cy="135" rx="26" ry="28" fill="white" stroke="#333" stroke-width="1.5"/>
+  <ellipse cx="228" cy="135" rx="26" ry="28" fill="white" stroke="#333" stroke-width="1.5"/>
+  <circle cx="176" cy="138" r="12" fill="#222"/>
+  <circle cx="232" cy="138" r="12" fill="#222"/>
+  <circle cx="181" cy="130" r="5" fill="white"/>
+  <circle cx="237" cy="130" r="5" fill="white"/>
+
+  <!-- Nose -->
+  <ellipse cx="200" cy="170" rx="8" ry="6" fill="#3a9aa8"/>
+
+  <!-- Toga - lowered 10% (~13px) -->
+  <path d="
+    M 98 213
+    C 90 238, 88 273, 92 298
+    C 96 318, 110 331, 150 335
+    C 175 338, 225 338, 260 333
+    L 295 325
+    C 308 308, 312 278, 312 253
+    C 312 233, 306 218, 298 208
+    C 270 213, 235 211, 200 208
+    C 160 203, 120 205, 98 213
+    Z
+  " fill="url(#togaFold)" stroke="#d8d0b8" stroke-width="1"/>
+
+  <!-- Toga fold lines -->
+  <path d="M 115 243 C 122 273, 128 303, 138 333" fill="none" stroke="#d8d0b8" stroke-width="1.5" opacity="0.6"/>
+  <path d="M 155 233 C 162 268, 168 303, 175 335" fill="none" stroke="#d8d0b8" stroke-width="1.5" opacity="0.5"/>
+  <path d="M 210 213 C 214 253, 218 293, 225 333" fill="none" stroke="#d8d0b8" stroke-width="1.5" opacity="0.4"/>
+  <path d="M 265 213 C 268 253, 272 293, 275 328" fill="none" stroke="#d8d0b8" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- Toga shoulder drape -->
+  <path d="
+    M 92 219
+    C 82 201, 86 185, 102 178
+    C 114 173, 130 177, 138 185
+    C 134 201, 118 213, 104 215
+    Z
+  " fill="url(#togaShadow)" stroke="#d8d0b8" stroke-width="1"/>
+
+  <!-- Toga sash hanging -->
+  <path d="
+    M 92 219
+    C 76 245, 72 278, 76 308
+    C 78 323, 84 333, 92 338
+    L 102 331
+    C 94 323, 88 308, 86 288
+    C 84 263, 90 238, 104 215
+    Z
+  " fill="#eee8d0" stroke="#d8d0b8" stroke-width="1" opacity="0.9"/>
+
+  <!-- Red sash - shifted 10% toward shoulder, runs to bottom right -->
+  <path d="
+    M 86 189
+    C 96 179, 114 173, 128 171
+    C 135 175, 132 183, 125 187
+    C 160 199, 220 227, 270 267
+    C 290 282, 302 302, 306 325
+    C 304 334, 296 334, 289 328
+    C 272 310, 232 285, 175 259
+    C 138 241, 106 217, 86 202
+    Z
+  " fill="url(#sashGrad)" stroke="#901e1a" stroke-width="0.8"/>
+
+  <!-- Left arm (no hand oval) -->
+  <path d="M 95 240 C 78 248, 68 262, 65 272" stroke="#4db8c7" stroke-width="20" stroke-linecap="round" fill="none"/>
+
+  <!-- Right arm (no hand oval) -->
+  <path d="M 305 245 C 322 253, 332 267, 335 277" stroke="#5bc8d8" stroke-width="20" stroke-linecap="round" fill="none"/>
+
+  <!-- Teeth - 4x size (top layer, centered), moved up 24px -->
+  <rect x="183" y="184" width="16" height="24" rx="3" fill="white" stroke="#ccc" stroke-width="0.8"/>
+  <rect x="201" y="184" width="16" height="24" rx="3" fill="white" stroke="#ccc" stroke-width="0.8"/>
+  <line x1="183" y1="184" x2="199" y2="184" stroke="#ccc" stroke-width="0.5"/>
+  <line x1="201" y1="184" x2="217" y2="184" stroke="#ccc" stroke-width="0.5"/>
 </svg>
