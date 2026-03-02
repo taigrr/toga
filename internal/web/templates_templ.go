@@ -5,13 +5,13 @@ package web
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
-import "github.com/a-h/templ"
-import templruntime "github.com/a-h/templ/runtime"
-
 import (
 	"fmt"
 	"net/url"
 	"strings"
+
+	"github.com/a-h/templ"
+	templruntime "github.com/a-h/templ/runtime"
 )
 
 func formatSize(bytes int64) string {
@@ -254,7 +254,7 @@ func indexPage(prefix string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" hx-target=\"#fetch-result\" hx-swap=\"innerHTML\" x-data=\"{ fetching: false }\"><input type=\"text\" name=\"module\" placeholder=\"github.com/user/repo\" style=\"flex:2\"> <input type=\"text\" name=\"version\" placeholder=\"v1.0.0 or latest\" style=\"flex:1\"> <label style=\"display:flex;align-items:center;gap:0.25rem;margin:0;white-space:nowrap\"><input type=\"checkbox\" name=\"recursive\" style=\"margin:0\" checked> Include deps</label> <button type=\"submit\" @click=\"fetching=true\" :disabled=\"fetching\">Fetch</button></form><div id=\"fetch-result\"></div></article></div></main><script>\n\t\t\tvar uiPrefix = document.querySelector('[data-ui-prefix]')?.dataset.uiPrefix || '/-/ui';\n\t\t\tfunction switchTab(el, tab) {\n\t\t\t\tdocument.querySelectorAll('.tab-bar button').forEach(t => t.classList.remove('active'));\n\t\t\t\tel.classList.add('active');\n\t\t\t\tdocument.getElementById('tab-modules').style.display = tab === 'modules' ? '' : 'none';\n\t\t\t\tdocument.getElementById('tab-fetch').style.display = tab === 'fetch' ? '' : 'none';\n\t\t\t}\n\t\t\tfunction deleteSelected() {\n\t\t\t\tconst checked = document.querySelectorAll('input[name=\"selected\"]:checked');\n\t\t\t\tif (checked.length === 0) return;\n\t\t\t\tif (!confirm('Delete ' + checked.length + ' selected module(s)?')) return;\n\n\t\t\t\tconst form = document.createElement('form');\n\t\t\t\tform.method = 'POST';\n\t\t\t\tform.action = uiPrefix + '/delete';\n\t\t\t\tchecked.forEach(cb => {\n\t\t\t\t\tconst input = document.createElement('input');\n\t\t\t\t\tinput.type = 'hidden';\n\t\t\t\t\tinput.name = 'selected';\n\t\t\t\t\tinput.value = cb.value;\n\t\t\t\t\tform.appendChild(input);\n\t\t\t\t});\n\t\t\t\tdocument.body.appendChild(form);\n\t\t\t\thtmx.ajax('POST', uiPrefix + '/delete', {\n\t\t\t\t\tsource: form,\n\t\t\t\t\ttarget: '#module-list'\n\t\t\t\t}).then(() => form.remove());\n\t\t\t}\n\t\t\tdocument.body.addEventListener('htmx:afterSwap', function() {\n\t\t\t\tdocument.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));\n\t\t\t});\n\n\t\t</script></body></html>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 15, "\" hx-target=\"#fetch-result\" hx-swap=\"innerHTML\" x-data=\"{ fetching: false }\"><input type=\"text\" name=\"module\" placeholder=\"github.com/user/repo\" style=\"flex:2\"> <input type=\"text\" name=\"version\" placeholder=\"v1.0.0 or latest\" style=\"flex:1\"> <label style=\"display:flex;align-items:center;gap:0.25rem;margin:0;white-space:nowrap\"><input type=\"checkbox\" name=\"recursive\" style=\"margin:0\" checked> Include deps</label> <button type=\"submit\" @click=\"fetching=true\" :disabled=\"fetching\">Fetch</button></form><div id=\"fetch-result\"></div></article></div></main><script>\n\t\t\tvar uiPrefix = document.querySelector('[data-ui-prefix]')?.dataset.uiPrefix || '/-/ui';\n\t\t\tfunction switchTab(el, tab) {\n\t\t\t\tdocument.querySelectorAll('.tab-bar button').forEach(t => t.classList.remove('active'));\n\t\t\t\tel.classList.add('active');\n\t\t\t\tdocument.getElementById('tab-modules').style.display = tab === 'modules' ? '' : 'none';\n\t\t\t\tdocument.getElementById('tab-fetch').style.display = tab === 'fetch' ? '' : 'none';\n\t\t\t\thistory.replaceState(null, '', '#' + tab);\n\t\t\t}\n\t\t\t// Restore tab from URL fragment on load\n\t\t\t(function() {\n\t\t\t\tvar hash = location.hash.replace('#', '');\n\t\t\t\tif (hash === 'fetch' || hash === 'modules') {\n\t\t\t\t\tvar btn = document.querySelectorAll('.tab-bar button');\n\t\t\t\t\tbtn.forEach(function(b) {\n\t\t\t\t\t\tif (b.textContent.toLowerCase().includes(hash === 'fetch' ? 'fetch' : 'module')) {\n\t\t\t\t\t\t\tswitchTab(b, hash);\n\t\t\t\t\t\t}\n\t\t\t\t\t});\n\t\t\t\t}\n\t\t\t})();\n\t\t\tfunction deleteSelected() {\n\t\t\t\tconst checked = document.querySelectorAll('input[name=\"selected\"]:checked');\n\t\t\t\tif (checked.length === 0) return;\n\t\t\t\tif (!confirm('Delete ' + checked.length + ' selected module(s)?')) return;\n\n\t\t\t\tconst form = document.createElement('form');\n\t\t\t\tform.method = 'POST';\n\t\t\t\tform.action = uiPrefix + '/delete';\n\t\t\t\tchecked.forEach(cb => {\n\t\t\t\t\tconst input = document.createElement('input');\n\t\t\t\t\tinput.type = 'hidden';\n\t\t\t\t\tinput.name = 'selected';\n\t\t\t\t\tinput.value = cb.value;\n\t\t\t\t\tform.appendChild(input);\n\t\t\t\t});\n\t\t\t\tdocument.body.appendChild(form);\n\t\t\t\thtmx.ajax('POST', uiPrefix + '/delete', {\n\t\t\t\t\tsource: form,\n\t\t\t\t\ttarget: '#module-list'\n\t\t\t\t}).then(() => form.remove());\n\t\t\t}\n\t\t\tdocument.body.addEventListener('htmx:afterSwap', function() {\n\t\t\t\tdocument.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));\n\t\t\t});\n\n\t\t</script></body></html>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -303,7 +303,7 @@ func moduleListFragment(page *ModulePage, query string, prefix string) templ.Com
 				var templ_7745c5c3_Var17 string
 				templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d modules", page.Total))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 215, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 228, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 				if templ_7745c5c3_Err != nil {
@@ -405,7 +405,7 @@ func moduleRow(m Module, prefix string) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(m.Path + "@")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 253, Col: 65}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 266, Col: 65}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -418,7 +418,7 @@ func moduleRow(m Module, prefix string) templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(prefix + "/module?path=" + m.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 257, Col: 46}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 270, Col: 46}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -431,7 +431,7 @@ func moduleRow(m Module, prefix string) templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(m.Path)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 262, Col: 12}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 275, Col: 12}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -444,7 +444,7 @@ func moduleRow(m Module, prefix string) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(m.Versions)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 265, Col: 42}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 278, Col: 42}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -462,7 +462,7 @@ func moduleRow(m Module, prefix string) templ.Component {
 			var templ_7745c5c3_Var24 string
 			templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(m.Versions[len(m.Versions)-1].Version)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 268, Col: 71}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 281, Col: 71}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 			if templ_7745c5c3_Err != nil {
@@ -480,7 +480,7 @@ func moduleRow(m Module, prefix string) templ.Component {
 		var templ_7745c5c3_Var25 string
 		templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(totalSize(m))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 271, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 284, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 		if templ_7745c5c3_Err != nil {
@@ -524,7 +524,7 @@ func loadMoreSentinel(cursor, query, prefix string) templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(nextPageURL(prefix, cursor, query))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 279, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 292, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -566,7 +566,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 		var templ_7745c5c3_Var29 string
 		templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(modPath)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 293, Col: 21}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 306, Col: 21}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 		if templ_7745c5c3_Err != nil {
@@ -579,7 +579,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 		var templ_7745c5c3_Var30 string
 		templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(prefix + "/delete")
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 296, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 309, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 		if templ_7745c5c3_Err != nil {
@@ -592,7 +592,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 		var templ_7745c5c3_Var31 string
 		templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`{"module":"%s","version":""}`, modPath))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 297, Col: 67}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 310, Col: 67}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 		if templ_7745c5c3_Err != nil {
@@ -620,7 +620,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 				var templ_7745c5c3_Var32 string
 				templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(prefix + "/file?name=" + modPath + "/@v/" + f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 317, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 330, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 				if templ_7745c5c3_Err != nil {
@@ -633,7 +633,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 				var templ_7745c5c3_Var33 string
 				templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(f.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 323, Col: 17}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 336, Col: 17}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 				if templ_7745c5c3_Err != nil {
@@ -646,7 +646,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 				var templ_7745c5c3_Var34 string
 				templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(formatSize(f.Size))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 326, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 339, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 				if templ_7745c5c3_Err != nil {
@@ -664,7 +664,7 @@ func moduleDetailFragment(modPath string, files []FileEntry, prefix string) temp
 					var templ_7745c5c3_Var35 templ.SafeURL
 					templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL(prefix + "/download?name=" + modPath + "/@v/" + f.Name))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 329, Col: 88}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 342, Col: 88}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 					if templ_7745c5c3_Err != nil {
@@ -721,7 +721,7 @@ func fileViewFragment(name string, content string, lang string, truncated bool) 
 		var templ_7745c5c3_Var37 string
 		templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(name)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 344, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 357, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 		if templ_7745c5c3_Err != nil {
@@ -749,7 +749,7 @@ func fileViewFragment(name string, content string, lang string, truncated bool) 
 			var templ_7745c5c3_Var38 templ.SafeURL
 			templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinURLErrs(templ.SafeURL("/" + name))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 350, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 363, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 			if templ_7745c5c3_Err != nil {
@@ -789,7 +789,7 @@ func fileViewFragment(name string, content string, lang string, truncated bool) 
 			var templ_7745c5c3_Var41 string
 			templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(content)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 352, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 365, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 			if templ_7745c5c3_Err != nil {
@@ -842,7 +842,7 @@ func fetchResultFragment(modPath string, err error) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(modPath)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 362, Col: 21}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 375, Col: 21}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -856,7 +856,7 @@ func fetchResultFragment(modPath string, err error) templ.Component {
 			var templ_7745c5c3_Var44 string
 			templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(err.Error())
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 364, Col: 16}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 377, Col: 16}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 			if templ_7745c5c3_Err != nil {
@@ -874,7 +874,7 @@ func fetchResultFragment(modPath string, err error) templ.Component {
 			var templ_7745c5c3_Var45 string
 			templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(modPath)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 368, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 381, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 			if templ_7745c5c3_Err != nil {
@@ -921,7 +921,7 @@ func fetchRecursiveResultFragment(results []FetchResult) templ.Component {
 		var templ_7745c5c3_Var47 string
 		templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", countSuccesses(results)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 377, Col: 55}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 390, Col: 55}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 		if templ_7745c5c3_Err != nil {
@@ -934,7 +934,7 @@ func fetchRecursiveResultFragment(results []FetchResult) templ.Component {
 		var templ_7745c5c3_Var48 string
 		templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", len(results)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 377, Col: 94}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 390, Col: 94}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 		if templ_7745c5c3_Err != nil {
@@ -957,7 +957,7 @@ func fetchRecursiveResultFragment(results []FetchResult) templ.Component {
 				var templ_7745c5c3_Var49 string
 				templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(r.Module)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 385, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 398, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 				if templ_7745c5c3_Err != nil {
@@ -970,7 +970,7 @@ func fetchRecursiveResultFragment(results []FetchResult) templ.Component {
 				var templ_7745c5c3_Var50 string
 				templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(r.Err.Error())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 385, Col: 87}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 398, Col: 87}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 				if templ_7745c5c3_Err != nil {
@@ -988,7 +988,7 @@ func fetchRecursiveResultFragment(results []FetchResult) templ.Component {
 				var templ_7745c5c3_Var51 string
 				templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(r.Module)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 387, Col: 68}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 400, Col: 68}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 				if templ_7745c5c3_Err != nil {
@@ -1040,7 +1040,7 @@ func fetchPollingFragment(jobID string, prefix string) templ.Component {
 		var templ_7745c5c3_Var53 string
 		templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(prefix + "/fetch-status?id=" + jobID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 399, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 412, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 		if templ_7745c5c3_Err != nil {
@@ -1082,7 +1082,7 @@ func fetchPollingProgressFragment(jobID string, count int, latest string, prefix
 		var templ_7745c5c3_Var55 string
 		templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(prefix + "/fetch-status?id=" + jobID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 409, Col: 47}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 422, Col: 47}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 		if templ_7745c5c3_Err != nil {
@@ -1095,7 +1095,7 @@ func fetchPollingProgressFragment(jobID string, count int, latest string, prefix
 		var templ_7745c5c3_Var56 string
 		templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", count))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 414, Col: 62}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 427, Col: 62}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 		if templ_7745c5c3_Err != nil {
@@ -1113,7 +1113,7 @@ func fetchPollingProgressFragment(jobID string, count int, latest string, prefix
 			var templ_7745c5c3_Var57 string
 			templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(latest)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 417, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates.templ`, Line: 430, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 			if templ_7745c5c3_Err != nil {

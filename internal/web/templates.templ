@@ -167,7 +167,20 @@ templ indexPage(prefix string) {
 				el.classList.add('active');
 				document.getElementById('tab-modules').style.display = tab === 'modules' ? '' : 'none';
 				document.getElementById('tab-fetch').style.display = tab === 'fetch' ? '' : 'none';
+				history.replaceState(null, '', '#' + tab);
 			}
+			// Restore tab from URL fragment on load
+			(function() {
+				var hash = location.hash.replace('#', '');
+				if (hash === 'fetch' || hash === 'modules') {
+					var btn = document.querySelectorAll('.tab-bar button');
+					btn.forEach(function(b) {
+						if (b.textContent.toLowerCase().includes(hash === 'fetch' ? 'fetch' : 'module')) {
+							switchTab(b, hash);
+						}
+					});
+				}
+			})();
 			function deleteSelected() {
 				const checked = document.querySelectorAll('input[name="selected"]:checked');
 				if (checked.length === 0) return;
