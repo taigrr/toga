@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -100,7 +101,7 @@ func TestValidateStorageAzureRequiresAccountAndContainer(t *testing.T) {
 func TestBuildHandlerHealthz(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{}
-	handler := buildHandler(proxy, cfg)
+	handler := buildHandler(proxy, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
 	w := httptest.NewRecorder()
@@ -114,7 +115,7 @@ func TestBuildHandlerHealthz(t *testing.T) {
 func TestBuildHandlerReadyz(t *testing.T) {
 	proxy := &goproxy.Goproxy{}
 	cfg := &config.Config{}
-	handler := buildHandler(proxy, cfg)
+	handler := buildHandler(proxy, cfg, slog.Default())
 
 	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
 	w := httptest.NewRecorder()

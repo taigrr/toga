@@ -6,12 +6,15 @@ import (
 	"crypto/subtle"
 	"errors"
 	"fmt"
+	"html/template"
 	"io"
 	"log/slog"
 	"net"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -22,8 +25,15 @@ import (
 	"github.com/taigrr/toga/internal/storage/azureblob"
 	"github.com/taigrr/toga/internal/storage/disk"
 	"github.com/taigrr/toga/internal/storage/gcs"
+	"github.com/taigrr/toga/internal/storage/memory"
 	miniocacher "github.com/taigrr/toga/internal/storage/minio"
 	s3cacher "github.com/taigrr/toga/internal/storage/s3"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.26.0"
 )
 
 var version = "dev"
@@ -34,7 +44,7 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "toga",
 		Short: "A Go module proxy — drop-in replacement for Athens",
-		Long:  "Toga is a Go module proxy powered by goproxy. It supports disk, S3, MinIO, GCS, and Azure Blob storage backends.",
+		Long:  "Toga is a Go module proxy powered by goproxy. It supports memory, disk, S3, MinIO, GCS, and Azure Blob storage backends.",
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return config.Init(configFile)
 		},
@@ -51,10 +61,24 @@ func main() {
 func runServe(cmd *cobra.Command, _ []string) error {
 	cfg := config.Load()
 
-	logger := newLogger(cfg.LogLevel)
+	logger := newLogger(cfg.LogLevel, cfg.LogFormat)
 
 	ctx, cancel := signal.NotifyContext(cmd.Context(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
+
+	// Initialize tracing if configured.
+	shutdownTracer, err := initTracer(ctx, cfg)
+	if err != nil {
+		return fmt.Errorf("initialize tracing: %w", err)
+	}
+	if shutdownTracer != nil {
+		defer shutdownTracer(context.Background())
+	}
+
+	// Set up .netrc from GitHub token if provided.
+	if err := setupNetrc(cfg); err != nil {
+		return fmt.Errorf("setup netrc: %w", err)
+	}
 
 	cacher, err := newCacher(ctx, cfg)
 	if err != nil {
@@ -65,12 +89,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 
 	fetcher := &goproxy.GoFetcher{
-		GoBin:   cfg.GoBinary,
-		TempDir: os.TempDir(),
+		GoBin:            cfg.GoBinary,
+		Env:              cfg.GoBinaryEnvVars,
+		MaxDirectFetches: cfg.GoGetWorkers,
+		TempDir:          os.TempDir(),
 	}
-
-	// TODO: implement NetworkMode (strict/offline/fallback) to control
-	// whether toga serves from cache only, upstream only, or falls back.
 
 	// Propagate Go environment variables so the Go toolchain picks them up.
 	goEnvVars := map[string]string{
@@ -90,13 +113,25 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	}
 
 	proxy := &goproxy.Goproxy{
-		Fetcher:       fetcher,
-		Cacher:        cacher,
 		ProxiedSumDBs: cfg.ProxiedSumDBs,
 		Logger:        logger,
 	}
 
-	handler := buildHandler(proxy, cfg)
+	// Apply network mode.
+	switch cfg.NetworkMode {
+	case "offline":
+		// Cache only — no upstream fetching.
+		proxy.Cacher = cacher
+	case "strict":
+		// Upstream only — no caching.
+		proxy.Fetcher = fetcher
+	default: // "fallback"
+		// Cache first, then upstream.
+		proxy.Fetcher = fetcher
+		proxy.Cacher = cacher
+	}
+
+	handler := buildHandler(proxy, cfg, logger)
 
 	srv := &http.Server{
 		Handler:           handler,
@@ -110,7 +145,28 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("listen: %w", err)
 	}
 
-	logger.Info("starting toga", "address", ln.Addr().String(), "storage", cfg.StorageType)
+	// Start pprof server if enabled.
+	if cfg.EnablePprof {
+		go func() {
+			pprofSrv := &http.Server{
+				Addr:              cfg.PprofPort,
+				Handler:           http.DefaultServeMux,
+				ReadHeaderTimeout: readHeaderTimeout,
+			}
+			logger.Info("starting pprof", "address", cfg.PprofPort)
+			if err := pprofSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				logger.Error("pprof server failed", "error", err)
+			}
+		}()
+	}
+
+	logger.Info("starting toga",
+		"address", ln.Addr().String(),
+		"storage", cfg.StorageType,
+		"network_mode", cfg.NetworkMode,
+		"goget_workers", cfg.GoGetWorkers,
+		"protocol_workers", cfg.ProtocolWorkers,
+	)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -138,7 +194,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 const readHeaderTimeout = 5 * time.Second
 
-func newLogger(level string) *slog.Logger {
+func newLogger(level, format string) *slog.Logger {
 	var logLevel slog.Level
 	switch level {
 	case "debug":
@@ -150,7 +206,11 @@ func newLogger(level string) *slog.Logger {
 	default:
 		logLevel = slog.LevelInfo
 	}
-	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel}))
+	opts := &slog.HandlerOptions{Level: logLevel}
+	if format == "plain" || format == "text" {
+		return slog.New(slog.NewTextHandler(os.Stderr, opts))
+	}
+	return slog.New(slog.NewJSONHandler(os.Stderr, opts))
 }
 
 func listen(cfg *config.Config) (net.Listener, error) {
@@ -164,8 +224,14 @@ func listen(cfg *config.Config) (net.Listener, error) {
 	return net.Listen("tcp", cfg.Port)
 }
 
-func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config) http.Handler {
+func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config, logger *slog.Logger) http.Handler {
 	var handler http.Handler = proxy
+
+	// Apply protocol worker semaphore.
+	if cfg.ProtocolWorkers > 0 {
+		handler = maxConcurrency(handler, cfg.ProtocolWorkers)
+	}
+
 	if cfg.PathPrefix != "" {
 		handler = http.StripPrefix(cfg.PathPrefix, handler)
 	}
@@ -173,10 +239,28 @@ func buildHandler(proxy *goproxy.Goproxy, cfg *config.Config) http.Handler {
 		handler = basicAuth(handler, cfg.BasicAuthUser, cfg.BasicAuthPass)
 	}
 
+	// Wrap with OpenTelemetry if tracing is enabled.
+	if cfg.TraceExporter != "" {
+		handler = otelhttp.NewHandler(handler, "toga")
+	}
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", healthHandler)
 	mux.HandleFunc("/readyz", healthHandler)
-	mux.Handle("/", handler)
+
+	// Robots.txt
+	if cfg.RobotsFile != "" {
+		mux.HandleFunc("/robots.txt", robotsHandler(cfg.RobotsFile, logger))
+	} else {
+		mux.HandleFunc("/robots.txt", defaultRobotsHandler)
+	}
+
+	// Homepage
+	if cfg.HomeTemplatePath != "" {
+		mux.HandleFunc("/", homeOrProxy(cfg.HomeTemplatePath, handler, logger))
+	} else {
+		mux.Handle("/", handler)
+	}
 
 	return mux
 }
@@ -185,12 +269,63 @@ func healthHandler(w http.ResponseWriter, _ *http.Request) {
 	fmt.Fprintln(w, "ok")
 }
 
+func defaultRobotsHandler(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Content-Type", "text/plain")
+	fmt.Fprintln(w, "User-agent: *\nDisallow: /")
+}
+
+func robotsHandler(path string, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			logger.Warn("failed to read robots.txt", "path", path, "error", err)
+			w.Header().Set("Content-Type", "text/plain")
+			fmt.Fprintln(w, "User-agent: *\nDisallow: /")
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write(data)
+	}
+}
+
+func homeOrProxy(tmplPath string, proxyHandler http.Handler, logger *slog.Logger) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Only serve homepage at exact root path.
+		if r.URL.Path != "/" {
+			proxyHandler.ServeHTTP(w, r)
+			return
+		}
+		tmpl, err := template.ParseFiles(tmplPath)
+		if err != nil {
+			logger.Warn("failed to parse home template", "path", tmplPath, "error", err)
+			proxyHandler.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		if err := tmpl.Execute(w, nil); err != nil {
+			logger.Error("failed to render home template", "error", err)
+		}
+	}
+}
+
+// maxConcurrency limits concurrent requests via a semaphore.
+func maxConcurrency(next http.Handler, n int) http.Handler {
+	sem := make(chan struct{}, n)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sem <- struct{}{}
+		defer func() { <-sem }()
+		next.ServeHTTP(w, r)
+	})
+}
+
 func newCacher(ctx context.Context, cfg *config.Config) (goproxy.Cacher, error) {
 	if err := validateStorage(cfg); err != nil {
 		return nil, err
 	}
 
 	switch cfg.StorageType {
+	case "memory":
+		return memory.New(), nil
 	case "disk":
 		return disk.New(disk.Config{RootPath: cfg.Disk.RootPath}), nil
 	case "s3":
@@ -231,6 +366,8 @@ func newCacher(ctx context.Context, cfg *config.Config) (goproxy.Cacher, error) 
 
 func validateStorage(cfg *config.Config) error {
 	switch cfg.StorageType {
+	case "memory":
+		// No validation needed.
 	case "disk":
 		if cfg.Disk.RootPath == "" {
 			return fmt.Errorf("disk storage requires root_path")
@@ -267,4 +404,76 @@ func basicAuth(next http.Handler, user, pass string) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// setupNetrc creates or copies .netrc for private repo access.
+func setupNetrc(cfg *config.Config) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	netrcDest := filepath.Join(home, ".netrc")
+
+	// Copy netrc file if specified.
+	if cfg.NETRCPath != "" {
+		data, err := os.ReadFile(cfg.NETRCPath)
+		if err != nil {
+			return fmt.Errorf("read netrc %s: %w", cfg.NETRCPath, err)
+		}
+		return os.WriteFile(netrcDest, data, 0o600)
+	}
+
+	// Generate netrc from GitHub token if specified.
+	if cfg.GithubToken != "" {
+		content := fmt.Sprintf("machine github.com login %s password x-oauth-basic\n", cfg.GithubToken)
+		return os.WriteFile(netrcDest, []byte(content), 0o600)
+	}
+
+	return nil
+}
+
+// initTracer sets up OpenTelemetry tracing. Returns a shutdown function.
+func initTracer(ctx context.Context, cfg *config.Config) (func(context.Context) error, error) {
+	if cfg.TraceExporter == "" {
+		return nil, nil
+	}
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			semconv.ServiceNameKey.String("toga"),
+			semconv.ServiceVersionKey.String(version),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create resource: %w", err)
+	}
+
+	var exporter sdktrace.SpanExporter
+
+	switch cfg.TraceExporter {
+	case "otlp", "jaeger":
+		opts := []otlptracehttp.Option{}
+		if cfg.TraceEndpoint != "" {
+			opts = append(opts, otlptracehttp.WithEndpoint(cfg.TraceEndpoint))
+		}
+		exp, err := otlptracehttp.New(ctx, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("create OTLP exporter: %w", err)
+		}
+		exporter = exp
+	default:
+		return nil, fmt.Errorf("unknown trace exporter: %s", cfg.TraceExporter)
+	}
+
+	sampler := sdktrace.ParentBased(sdktrace.TraceIDRatioBased(cfg.TraceSampleRate))
+
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+		sdktrace.WithSampler(sampler),
+	)
+
+	otel.SetTracerProvider(tp)
+
+	return tp.Shutdown, nil
 }
