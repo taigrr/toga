@@ -324,6 +324,7 @@ func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher gop
 	}
 	mux.HandleFunc(logPath+"/", browser.LogSocketViewHandler)
 	mux.HandleFunc(logPath+"/ws", ws.LogSocketHandler)
+	mux.HandleFunc("/api/namespaces", ws.NamespacesHandler)
 
 	// Web UI for module browsing — pick the right lister for the backend.
 	var lister web.Lister
