@@ -201,7 +201,7 @@ func setDefaults() {
 	cm.SetDefault("pprof_port", ":3001")
 
 	// Log-socket
-	cm.SetDefault("enable_log_socket", "false")
+	cm.SetDefault("enable_log_socket", "true")
 	cm.SetDefault("log_socket_path", "/logs")
 
 	// Tracing
