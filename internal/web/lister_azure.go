@@ -203,7 +203,7 @@ func (a *AzureLister) GetFile(ctx context.Context, name string) (io.ReadCloser, 
 // DeleteModule removes cached files for a module and optional version.
 func (a *AzureLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
-		for _, ext := range []string{".info", ".mod", ".zip"} {
+		for _, ext := range versionExts {
 			key := modulePath + versionPrefix + version + ext
 			_, _ = a.Client.DeleteBlob(ctx, a.Container, key, nil)
 		}

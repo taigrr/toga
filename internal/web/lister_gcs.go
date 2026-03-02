@@ -184,7 +184,7 @@ func (g *GCSLister) GetFile(ctx context.Context, name string) (io.ReadCloser, er
 // DeleteModule removes cached files for a module and optional version.
 func (g *GCSLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
-		for _, ext := range []string{".info", ".mod", ".zip"} {
+		for _, ext := range versionExts {
 			key := modulePath + versionPrefix + version + ext
 			_ = g.Client.Bucket(g.Bucket).Object(key).Delete(ctx)
 		}

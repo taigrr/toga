@@ -232,7 +232,7 @@ func (d *DiskLister) GetFile(_ context.Context, name string) (io.ReadCloser, err
 func (d *DiskLister) DeleteModule(_ context.Context, modulePath, version string) error {
 	if version != "" {
 		dir := filepath.Join(d.Root, filepath.FromSlash(modulePath), "@v")
-		for _, ext := range []string{".info", ".mod", ".zip"} {
+		for _, ext := range versionExts {
 			os.Remove(filepath.Join(dir, version+ext))
 		}
 		entries, err := os.ReadDir(dir)

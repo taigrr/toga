@@ -43,6 +43,9 @@ const DefaultPageSize = 50
 // versionPrefix is the path separator between module path and version files.
 const versionPrefix = "/@v/"
 
+// versionExts are the file extensions for a cached module version.
+var versionExts = []string{".info", ".mod", ".zip"}
+
 // Lister can enumerate cached modules. Implemented per storage backend.
 type Lister interface {
 	// ListModules returns a paginated list of cached modules.

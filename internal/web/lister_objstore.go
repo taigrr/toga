@@ -21,6 +21,7 @@ type ObjectStoreLister struct {
 // Since S3 keys are flat (module/@v/version.ext), we list with prefix=""
 // and look for keys containing versionPrefix to extract module paths.
 // For large buckets, this streams results instead of loading all keys into memory.
+// ListModules returns a paginated list of cached modules from the object store.
 func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query string, limit int) (*ModulePage, error) {
 	if limit <= 0 {
 		limit = DefaultPageSize
@@ -170,6 +171,7 @@ func (o *ObjectStoreLister) loadModuleDetail(ctx context.Context, modPath string
 }
 
 // ListFiles lists all objects under module/@v/.
+// ListFiles lists all objects under a module's version prefix.
 func (o *ObjectStoreLister) ListFiles(ctx context.Context, modulePath string) ([]FileEntry, error) {
 	prefix := modulePath + versionPrefix
 	var files []FileEntry
@@ -211,7 +213,7 @@ func (o *ObjectStoreLister) GetFile(ctx context.Context, name string) (io.ReadCl
 // DeleteModule removes cached files for a module from the object store.
 func (o *ObjectStoreLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
-		for _, ext := range []string{".info", ".mod", ".zip"} {
+		for _, ext := range versionExts {
 			key := modulePath + versionPrefix + version + ext
 			_ = o.Client.RemoveObject(ctx, o.Bucket, key, minio.RemoveObjectOptions{})
 		}
