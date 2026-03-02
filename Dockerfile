@@ -6,7 +6,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /toga ./cmd/toga/
 
-FROM alpine:3.21
+FROM golang:1.26-alpine
 RUN apk add --no-cache ca-certificates git
 COPY --from=builder /toga /usr/local/bin/toga
 EXPOSE 3000
