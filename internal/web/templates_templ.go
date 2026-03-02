@@ -5,13 +5,13 @@ package web
 
 //lint:file-ignore SA4006 This context is only used if a nested component is present.
 
+import "github.com/a-h/templ"
+import templruntime "github.com/a-h/templ/runtime"
+
 import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/a-h/templ"
-	templruntime "github.com/a-h/templ/runtime"
 )
 
 func formatSize(bytes int64) string {
@@ -153,7 +153,7 @@ func indexPage(prefix string) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><div class=\"header-bar\"><h1>🏛️ Toga</h1><a href=\"/logs/\">📋 Live Logs</a></div><div class=\"tab-bar\"><button class=\"active\" onclick=\"switchTab(this, 'modules')\">Modules</button> <button onclick=\"switchTab(this, 'fetch')\">Fetch Package</button></div><div id=\"tab-modules\"><div class=\"toolbar\" x-data=\"{ hasSelection: false }\"><input type=\"search\" name=\"q\" placeholder=\"Filter modules...\" hx-get=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "\"><div class=\"header-bar\"><h1 style=\"display:flex;align-items:center;gap:0.5rem\"><svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 512 512\" fill=\"none\" width=\"36\" height=\"36\"><defs><linearGradient id=\"tg\" x1=\"0.3\" y1=\"0\" x2=\"0.7\" y2=\"1\"><stop offset=\"0%\" stop-color=\"#818CF8\"></stop><stop offset=\"100%\" stop-color=\"#6366F1\"></stop></linearGradient></defs><path d=\"M96 190 L256 70 L416 190\" fill=\"url(#tg)\"></path><rect x=\"80\" y=\"190\" width=\"352\" height=\"28\" rx=\"4\" fill=\"url(#tg)\"></rect><rect x=\"108\" y=\"222\" width=\"40\" height=\"190\" rx=\"4\" fill=\"url(#tg)\"></rect><rect x=\"200\" y=\"222\" width=\"40\" height=\"190\" rx=\"4\" fill=\"url(#tg)\"></rect><rect x=\"272\" y=\"222\" width=\"40\" height=\"190\" rx=\"4\" fill=\"url(#tg)\"></rect><rect x=\"364\" y=\"222\" width=\"40\" height=\"190\" rx=\"4\" fill=\"url(#tg)\"></rect><rect x=\"80\" y=\"412\" width=\"352\" height=\"28\" rx=\"4\" fill=\"url(#tg)\"></rect></svg> Toga</h1><a href=\"/logs/\">📋 Live Logs</a></div><div class=\"tab-bar\"><button class=\"active\" onclick=\"switchTab(this, 'modules')\">Modules</button> <button onclick=\"switchTab(this, 'fetch')\">Fetch Package</button></div><div id=\"tab-modules\"><div class=\"toolbar\" x-data=\"{ hasSelection: false }\"><input type=\"search\" name=\"q\" placeholder=\"Filter modules...\" hx-get=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

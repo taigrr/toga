@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0.3" y1="0" x2="0.7" y2="1">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="100%" stop-color="#6366F1"/>
+    </linearGradient>
+  </defs>
+  <!-- Pediment -->
+  <path d="M96 190 L256 70 L416 190" fill="url(#g)"/>
+  <!-- Entablature -->
+  <rect x="80" y="190" width="352" height="28" rx="4" fill="url(#g)"/>
+  <!-- Columns -->
+  <rect x="108" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
+  <rect x="200" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
+  <rect x="272" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
+  <rect x="364" y="222" width="40" height="190" rx="4" fill="url(#g)"/>
+  <!-- Fluting -->
+  <rect x="122" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="132" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="214" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="224" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="286" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="296" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="378" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <rect x="388" y="226" width="3" height="182" rx="1.5" fill="rgba(255,255,255,0.18)"/>
+  <!-- Stylobate -->
+  <rect x="80" y="412" width="352" height="28" rx="4" fill="url(#g)"/>
+</svg>

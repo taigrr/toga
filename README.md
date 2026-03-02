@@ -1,4 +1,18 @@
-# Toga
+<p align="center">
+  <img src="logo.svg" width="128" alt="Toga">
+</p>
+
+<h1 align="center">Toga</h1>
+
+<p align="center">
+  <em>A drop-in replacement for Athens — a Go module proxy powered by <a href="https://github.com/goproxy/goproxy">goproxy</a></em>
+</p>
+
+<p align="center">
+  <a href="https://github.com/taigrr/toga/actions"><img src="https://github.com/taigrr/toga/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://goreportcard.com/report/github.com/taigrr/toga"><img src="https://goreportcard.com/badge/github.com/taigrr/toga" alt="Go Report Card"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-0BSD-blue" alt="License"></a>
+</p>
 
 A Go module proxy that is a drop-in replacement for [Athens](https://github.com/gomods/athens), powered by [goproxy](https://github.com/goproxy/goproxy).
 
