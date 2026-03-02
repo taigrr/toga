@@ -5,8 +5,10 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"path"
@@ -321,12 +323,39 @@ func (h *Handler) fetchRecursiveWalk(ctx context.Context, modPath, version strin
 	}
 	seen[modPath] = true
 
-	modData, result := h.fetchModFileBytes(ctx, modPath, version)
-	if onProgress != nil {
-		onProgress(result)
+	// Try reading go.mod from cache first to avoid re-fetching.
+	var modData []byte
+	if h.Cacher != nil && version != "" && version != "latest" {
+		base := modPath + "/@v/" + version
+		if rc, err := h.Cacher.Get(ctx, base+".mod"); err == nil {
+			data, readErr := io.ReadAll(rc)
+			rc.Close()
+			if readErr == nil {
+				// Also verify .zip exists so we know it is fully cached.
+				if zrc, zerr := h.Cacher.Get(ctx, base+".zip"); zerr == nil {
+					zrc.Close()
+					modData = data
+					if onProgress != nil {
+						onProgress(FetchResult{Module: modPath + "@" + version})
+					}
+					h.Logger.Info("using cached module", "module", modPath, "version", version)
+				}
+			}
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			h.Logger.Warn("cache check failed", "module", modPath, "error", err)
+		}
 	}
-	if result.Err != nil || modData == nil {
-		return
+
+	// If not cached, fetch from upstream.
+	if modData == nil {
+		var result FetchResult
+		modData, result = h.fetchModFileBytes(ctx, modPath, version)
+		if onProgress != nil {
+			onProgress(result)
+		}
+		if result.Err != nil || modData == nil {
+			return
+		}
 	}
 
 	f, err := modfile.Parse("go.mod", modData, nil)
