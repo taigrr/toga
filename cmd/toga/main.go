@@ -10,6 +10,7 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -124,6 +125,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		go runPprof(cfg, logger)
 	}
 
+	// Start periodic module cache cleanup if configured.
+	if cfg.ModCacheCleanupInterval > 0 {
+		go runModCacheCleanup(ctx, cfg, logger)
+	}
+
 	logger.Info("starting toga",
 		"address", ln.Addr().String(),
 		"storage", cfg.StorageType,
@@ -195,5 +201,24 @@ func runPprof(cfg *config.Config, logger interface{ Info(string, ...any) }) {
 	logger.Info("starting pprof", "address", cfg.PprofPort)
 	if err := pprofSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Info("pprof server failed", "error", err)
+	}
+}
+
+func runModCacheCleanup(ctx context.Context, cfg *config.Config, logger interface{ Info(string, ...any) }) {
+	ticker := time.NewTicker(cfg.ModCacheCleanupInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			cmd := exec.CommandContext(ctx, cfg.GoBinary, "clean", "-modcache")
+			if output, err := cmd.CombinedOutput(); err != nil {
+				logger.Info("modcache cleanup failed", "error", err, "output", string(output))
+			} else {
+				logger.Info("modcache cleanup complete")
+			}
+		}
 	}
 }

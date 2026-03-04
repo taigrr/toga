@@ -79,6 +79,11 @@ type Config struct {
 
 	// Log-socket: URL path prefix for WebSocket log viewer
 	LogSocketPath string
+
+	// ModCacheCleanupInterval controls how often the Go module cache is
+	// purged. Zero (default) disables cleanup — intended for host installs.
+	// Set via TOGA_MODCACHE_CLEANUP_INTERVAL in containers.
+	ModCacheCleanupInterval time.Duration
 }
 
 // DiskConfig holds configuration for the filesystem storage backend.
@@ -234,6 +239,9 @@ func setDefaults() {
 	// Log-socket
 	cm.SetDefault("log_socket_path", "/logs")
 
+	// Module cache cleanup (0 = disabled, e.g. "1h", "30m")
+	cm.SetDefault("modcache_cleanup_interval", "0")
+
 	// Tracing
 	cm.SetDefault("trace_exporter", "")
 	cm.SetDefault("trace_endpoint", "")
@@ -283,37 +291,38 @@ func Load() *Config {
 		panic("config: Load called before Init")
 	}
 	cfg := &Config{
-		Port:             cm.GetString("port"),
-		UnixSocket:       cm.GetString("unix_socket"),
-		TLSCertFile:      cm.GetString("tls_cert"),
-		TLSKeyFile:       cm.GetString("tls_key"),
-		StorageType:      strings.ToLower(cm.GetString("storage_type")),
-		GoBinary:         cm.GetString("go_binary"),
-		GoModCache:       cm.GetString("go_mod_cache"),
-		GoProxy:          cm.GetString("go_proxy"),
-		GoPrivate:        cm.GetString("go_private"),
-		GoNoProxy:        cm.GetString("go_noproxy"),
-		GoSumDB:          cm.GetString("go_sumdb"),
-		GoNoSumDB:        cm.GetString("go_nosumdb"),
-		Timeout:          cm.GetDuration("timeout"),
-		ShutdownTimeout:  cm.GetDuration("shutdown_timeout"),
-		LogLevel:         cm.GetString("log_level"),
-		LogFormat:        strings.ToLower(cm.GetString("log_format")),
-		PathPrefix:       cm.GetString("path_prefix"),
-		BasicAuthUser:    cm.GetString("basic_auth_user"),
-		BasicAuthPass:    cm.GetString("basic_auth_pass"),
-		NetworkMode:      strings.ToLower(cm.GetString("network_mode")),
-		GoGetWorkers:     cm.GetInt("goget_workers"),
-		ProtocolWorkers:  cm.GetInt("protocol_workers"),
-		NETRCPath:        cm.GetString("netrc_path"),
-		GithubToken:      cm.GetString("github_token"),
-		HomeTemplatePath: cm.GetString("home_template_path"),
-		RobotsFile:       cm.GetString("robots_file"),
-		EnablePprof:      cm.GetBool("enable_pprof"),
-		PprofPort:        cm.GetString("pprof_port"),
-		LogSocketPath:    cm.GetString("log_socket_path"),
-		TraceExporter:    strings.ToLower(cm.GetString("trace_exporter")),
-		TraceEndpoint:    cm.GetString("trace_endpoint"),
+		Port:                    cm.GetString("port"),
+		UnixSocket:              cm.GetString("unix_socket"),
+		TLSCertFile:             cm.GetString("tls_cert"),
+		TLSKeyFile:              cm.GetString("tls_key"),
+		StorageType:             strings.ToLower(cm.GetString("storage_type")),
+		GoBinary:                cm.GetString("go_binary"),
+		GoModCache:              cm.GetString("go_mod_cache"),
+		GoProxy:                 cm.GetString("go_proxy"),
+		GoPrivate:               cm.GetString("go_private"),
+		GoNoProxy:               cm.GetString("go_noproxy"),
+		GoSumDB:                 cm.GetString("go_sumdb"),
+		GoNoSumDB:               cm.GetString("go_nosumdb"),
+		Timeout:                 cm.GetDuration("timeout"),
+		ShutdownTimeout:         cm.GetDuration("shutdown_timeout"),
+		LogLevel:                cm.GetString("log_level"),
+		LogFormat:               strings.ToLower(cm.GetString("log_format")),
+		PathPrefix:              cm.GetString("path_prefix"),
+		BasicAuthUser:           cm.GetString("basic_auth_user"),
+		BasicAuthPass:           cm.GetString("basic_auth_pass"),
+		NetworkMode:             strings.ToLower(cm.GetString("network_mode")),
+		GoGetWorkers:            cm.GetInt("goget_workers"),
+		ProtocolWorkers:         cm.GetInt("protocol_workers"),
+		NETRCPath:               cm.GetString("netrc_path"),
+		GithubToken:             cm.GetString("github_token"),
+		HomeTemplatePath:        cm.GetString("home_template_path"),
+		RobotsFile:              cm.GetString("robots_file"),
+		EnablePprof:             cm.GetBool("enable_pprof"),
+		PprofPort:               cm.GetString("pprof_port"),
+		LogSocketPath:           cm.GetString("log_socket_path"),
+		ModCacheCleanupInterval: cm.GetDuration("modcache_cleanup_interval"),
+		TraceExporter:           strings.ToLower(cm.GetString("trace_exporter")),
+		TraceEndpoint:           cm.GetString("trace_endpoint"),
 		TraceSampleRate: func() float64 {
 			// jety doesn't have GetFloat64, parse manually
 			s := cm.GetString("trace_sample_rate")
