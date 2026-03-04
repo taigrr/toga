@@ -88,7 +88,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	proxy := &goproxy.Goproxy{
 		ProxiedSumDBs: cfg.ProxiedSumDBs,
-		Logger:        logger,
+		Logger:        newGoproxyLogger(logger),
 	}
 
 	// Apply network mode.
