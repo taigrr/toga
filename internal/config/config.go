@@ -156,7 +156,39 @@ func Init(configFile string) error {
 		}
 	}
 
+	flattenTables()
+
 	return nil
+}
+
+// flattenTables promotes nested TOML table keys into flat underscore-delimited
+// keys so that both syntaxes work in config files:
+//
+//	[minio]
+//	endpoint = "host:9000"
+//
+// becomes equivalent to:
+//
+//	minio_endpoint = "host:9000"
+//
+// Flat keys and env vars always take precedence over nested table values.
+func flattenTables() {
+	tableKeys := []string{
+		"disk", "s3", "minio", "gcs", "azureblob",
+	}
+	for _, table := range tableKeys {
+		nested := cm.GetStringMap(table)
+		if len(nested) == 0 {
+			continue
+		}
+		for subKey, value := range nested {
+			flatKey := table + "_" + strings.ToLower(subKey)
+			if envValue := os.Getenv(envPrefix + strings.ToUpper(flatKey)); envValue != "" {
+				continue
+			}
+			cm.Set(flatKey, value)
+		}
+	}
 }
 
 func setDefaults() {

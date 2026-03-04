@@ -348,3 +348,125 @@ func TestGoEnvironmentFields(t *testing.T) {
 		t.Errorf("go_nosumdb: got %q", cfg.GoNoSumDB)
 	}
 }
+
+func TestNestedTOMLTables(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "toga-nested-*.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.WriteString(`
+storage_type = "minio"
+
+[minio]
+endpoint = "minio.local:9000"
+bucket = "go-modules"
+key = "access-key"
+secret = "secret-key"
+region = "us-west-2"
+enable_ssl = true
+
+[s3]
+region = "eu-west-1"
+bucket = "s3-bucket"
+key = "s3-key"
+secret = "s3-secret"
+endpoint = "s3.local"
+force_path_style = true
+
+[disk]
+root_path = "/data/modules"
+
+[gcs]
+bucket = "gcs-bucket"
+project_id = "my-project"
+credentials_file = "/creds.json"
+
+[azureblob]
+account_name = "acct"
+account_key = "key"
+container_name = "container"
+`)
+	f.Close()
+
+	if err := Init(f.Name()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	cfg := Load()
+
+	if cfg.Minio.Endpoint != "minio.local:9000" {
+		t.Errorf("minio.endpoint: got %q, want %q", cfg.Minio.Endpoint, "minio.local:9000")
+	}
+	if cfg.Minio.Bucket != "go-modules" {
+		t.Errorf("minio.bucket: got %q, want %q", cfg.Minio.Bucket, "go-modules")
+	}
+	if cfg.Minio.Key != "access-key" {
+		t.Errorf("minio.key: got %q", cfg.Minio.Key)
+	}
+	if cfg.Minio.Secret != "secret-key" {
+		t.Errorf("minio.secret: got %q", cfg.Minio.Secret)
+	}
+	if cfg.Minio.Region != "us-west-2" {
+		t.Errorf("minio.region: got %q", cfg.Minio.Region)
+	}
+	if !cfg.Minio.EnableSSL {
+		t.Error("minio.enable_ssl should be true")
+	}
+
+	if cfg.S3.Region != "eu-west-1" {
+		t.Errorf("s3.region: got %q", cfg.S3.Region)
+	}
+	if cfg.S3.Bucket != "s3-bucket" {
+		t.Errorf("s3.bucket: got %q", cfg.S3.Bucket)
+	}
+	if cfg.S3.Key != "s3-key" {
+		t.Errorf("s3.key: got %q", cfg.S3.Key)
+	}
+	if !cfg.S3.ForcePathStyle {
+		t.Error("s3.force_path_style should be true")
+	}
+
+	if cfg.Disk.RootPath != "/data/modules" {
+		t.Errorf("disk.root_path: got %q", cfg.Disk.RootPath)
+	}
+
+	if cfg.GCS.Bucket != "gcs-bucket" {
+		t.Errorf("gcs.bucket: got %q", cfg.GCS.Bucket)
+	}
+	if cfg.GCS.ProjectID != "my-project" {
+		t.Errorf("gcs.project_id: got %q", cfg.GCS.ProjectID)
+	}
+
+	if cfg.AzureBlob.AccountName != "acct" {
+		t.Errorf("azure.account_name: got %q", cfg.AzureBlob.AccountName)
+	}
+	if cfg.AzureBlob.ContainerName != "container" {
+		t.Errorf("azure.container_name: got %q", cfg.AzureBlob.ContainerName)
+	}
+}
+
+func TestNestedTOMLEnvOverride(t *testing.T) {
+	f, err := os.CreateTemp(t.TempDir(), "toga-override-*.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _ = f.WriteString(`
+[minio]
+endpoint = "minio.local:9000"
+bucket = "file-bucket"
+`)
+	f.Close()
+
+	t.Setenv("TOGA_MINIO_BUCKET", "env-bucket")
+
+	if err := Init(f.Name()); err != nil {
+		t.Fatalf("Init: %v", err)
+	}
+	cfg := Load()
+
+	if cfg.Minio.Endpoint != "minio.local:9000" {
+		t.Errorf("minio.endpoint: got %q, want %q", cfg.Minio.Endpoint, "minio.local:9000")
+	}
+	if cfg.Minio.Bucket != "env-bucket" {
+		t.Errorf("env should override nested table: got %q, want %q", cfg.Minio.Bucket, "env-bucket")
+	}
+}
