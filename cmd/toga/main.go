@@ -75,16 +75,14 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		defer closer.Close()
 	}
 
+	// Build environment for Go fetcher, including configured Go env vars.
+	fetcherEnv := buildGoEnv(cfg)
+
 	fetcher := &goproxy.GoFetcher{
 		GoBin:            cfg.GoBinary,
-		Env:              cfg.GoBinaryEnvVars,
+		Env:              fetcherEnv,
 		MaxDirectFetches: cfg.GoGetWorkers,
 		TempDir:          os.TempDir(),
-	}
-
-	// Propagate Go environment variables so the Go toolchain picks them up.
-	if err := setGoEnv(cfg); err != nil {
-		return err
 	}
 
 	proxy := &goproxy.Goproxy{
@@ -162,8 +160,14 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	return srv.Shutdown(shutdownCtx)
 }
 
-func setGoEnv(cfg *config.Config) error {
-	goEnvVars := map[string]string{
+// buildGoEnv constructs the environment variable list for the Go fetcher.
+// It includes both user-specified vars (from config) and Go-specific vars
+// (GOMODCACHE, GOPROXY, GOPRIVATE, etc.) when configured.
+func buildGoEnv(cfg *config.Config) []string {
+	env := append([]string{}, cfg.GoBinaryEnvVars...)
+
+	// Add Go-specific environment variables if configured.
+	goVars := map[string]string{
 		"GOMODCACHE": cfg.GoModCache,
 		"GOPROXY":    cfg.GoProxy,
 		"GOPRIVATE":  cfg.GoPrivate,
@@ -171,14 +175,14 @@ func setGoEnv(cfg *config.Config) error {
 		"GOSUMDB":    cfg.GoSumDB,
 		"GONOSUMDB":  cfg.GoNoSumDB,
 	}
-	for k, v := range goEnvVars {
+
+	for k, v := range goVars {
 		if v != "" {
-			if err := os.Setenv(k, v); err != nil {
-				return fmt.Errorf("set %s: %w", k, err)
-			}
+			env = append(env, k+"="+v)
 		}
 	}
-	return nil
+
+	return env
 }
 
 func listen(cfg *config.Config) (net.Listener, error) {
