@@ -18,11 +18,15 @@ func formatSize(bytes int64) string {
 }
 
 func totalSize(m Module) string {
+	return formatSize(rawTotalSize(m))
+}
+
+func rawTotalSize(m Module) int64 {
 	var total int64
 	for _, v := range m.Versions {
 		total += v.Size
 	}
-	return formatSize(total)
+	return total
 }
 
 func countSuccesses(results []FetchResult) int {
@@ -97,6 +101,17 @@ templ indexPage(prefix string) {
 			.total-count { color: var(--pico-muted-color); font-size: 0.85rem; margin-bottom: 0.5rem; }
 			.htmx-indicator { display: none; }
 			.htmx-request .htmx-indicator, .htmx-request.htmx-indicator { display: inline; }
+			.stats-bar { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-bottom: 1rem; padding: 0.75rem 1rem; background: var(--pico-card-background-color); border-radius: var(--pico-border-radius); font-size: 0.85rem; color: var(--pico-muted-color); }
+			.stats-bar strong { color: var(--pico-color); }
+			@media (max-width: 768px) {
+				#module-form table thead { display: none; }
+				#module-form table, #module-form table tbody, #module-form table tr, #module-form table td { display: block; width: 100%; }
+				#module-form table tr { padding: 0.75rem 0; border-bottom: 1px solid var(--pico-muted-border-color); }
+				#module-form table td { padding: 0.25rem 0; border: none; text-align: left; }
+				#module-form table td:before { content: attr(data-label); font-weight: bold; display: inline-block; margin-right: 0.5rem; font-size: 0.8rem; color: var(--pico-muted-color); }
+				#module-form table td:first-child { display: inline-block; width: auto; }
+				#module-form table td:first-child:before { display: none; }
+			}
 		</style>
 		</head>
 		<body>
@@ -202,6 +217,19 @@ templ indexPage(prefix string) {
 					target: '#module-list'
 				}).then(() => form.remove());
 			}
+			function updateStats() {
+				var rows = document.querySelectorAll('#module-rows > tr[data-module-size]');
+				var totalBytes = 0;
+				rows.forEach(function(r) { totalBytes += parseInt(r.dataset.moduleSize || '0', 10); });
+				var countEl = document.getElementById('stats-count');
+				if (countEl) countEl.textContent = rows.length + '+';
+				var sizeEl = document.getElementById('stats-size');
+				if (sizeEl) {
+					if (totalBytes >= 1<<20) sizeEl.textContent = (totalBytes / (1<<20)).toFixed(1) + ' MB';
+					else if (totalBytes >= 1<<10) sizeEl.textContent = (totalBytes / (1<<10)).toFixed(1) + ' KB';
+					else sizeEl.textContent = totalBytes + ' B';
+				}
+			}
 			document.body.addEventListener('htmx:afterSwap', function(evt) {
 				document.querySelectorAll('pre code').forEach(el => hljs.highlightElement(el));
 				var reset = evt.detail.elt.querySelector('[x-init*="fetching"]');
@@ -209,6 +237,7 @@ templ indexPage(prefix string) {
 					var form = document.querySelector('.fetch-form');
 					if (form && form._x_dataStack) form._x_dataStack[0].fetching = false;
 				}
+				updateStats();
 			});
 		</script>
 		</body>
@@ -228,9 +257,14 @@ templ moduleListFragment(page *ModulePage, query string, prefix string) {
 			<p>Try a different filter.</p>
 		</div>
 	} else {
-		if page.Total > 0 {
-			<p class="total-count">{ fmt.Sprintf("%d modules", page.Total) }</p>
-		}
+		<div id="stats-bar" class="stats-bar">
+			if page.Total > 0 {
+				<span>Modules: <strong>{ fmt.Sprintf("%d", page.Total) }</strong></span>
+			} else {
+				<span>Modules: <strong id="stats-count">…</strong></span>
+			}
+			<span>Loaded size: <strong id="stats-size">…</strong></span>
+		</div>
 		<form id="module-form" x-data="{ allChecked: false, toggleAll() { document.querySelectorAll('input[name=selected]').forEach(cb => cb.checked = this.allChecked); } }">
 			<table>
 				<thead>
@@ -266,9 +300,9 @@ templ moduleRowsFragment(page *ModulePage, query string, prefix string) {
 }
 
 templ moduleRow(m Module, prefix string) {
-	<tr>
+	<tr data-module-size={ fmt.Sprintf("%d", rawTotalSize(m)) }>
 		<td><input type="checkbox" name="selected" value={ m.Path + "@" }/></td>
-		<td>
+		<td data-label="Module">
 			<a
 				class="module-path"
 				hx-get={ prefix + "/module?path=" + m.Path }
@@ -279,13 +313,13 @@ templ moduleRow(m Module, prefix string) {
 				{ m.Path }
 			</a>
 		</td>
-		<td>{ fmt.Sprintf("%d", len(m.Versions)) }</td>
-		<td>
+		<td data-label="Versions">{ fmt.Sprintf("%d", len(m.Versions)) }</td>
+		<td data-label="Latest">
 			if len(m.Versions) > 0 {
 				<span class="version-badge">{ m.Versions[len(m.Versions)-1].Version }</span>
 			}
 		</td>
-		<td class="file-size">{ totalSize(m) }</td>
+		<td data-label="Size" class="file-size">{ totalSize(m) }</td>
 	</tr>
 }
 
