@@ -57,7 +57,7 @@ go env -w GOPROXY=http://localhost:6060,direct
 ### Docker
 
 ```bash
-docker run -p 3000:6060 ghcr.io/taigrr/toga
+docker run -p 6060:6060 ghcr.io/taigrr/toga
 ```
 
 ### With S3
@@ -87,7 +87,7 @@ Toga is configured with environment variables (prefix `TOGA_`) or a config file 
 
 | Variable                | Default    | Description                                  |
 | ----------------------- | ---------- | -------------------------------------------- |
-| `TOGA_PORT`             | `:3000`    | Listen address                               |
+| `TOGA_PORT`             | `:6060`    | Listen address                               |
 | `TOGA_UNIX_SOCKET`      |            | Unix socket path (overrides port)            |
 | `TOGA_TIMEOUT`          | `300s`     | Request timeout                              |
 | `TOGA_SHUTDOWN_TIMEOUT` | `30s`      | Graceful shutdown timeout                    |

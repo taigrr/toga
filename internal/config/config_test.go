@@ -17,7 +17,7 @@ func TestDefaults(t *testing.T) {
 		got  string
 		want string
 	}{
-		{"port", cfg.Port, ":3000"},
+		{"port", cfg.Port, ":6060"},
 		{"storage_type", cfg.StorageType, "disk"},
 		{"network_mode", cfg.NetworkMode, "fallback"},
 		{"log_level", cfg.LogLevel, "info"},
@@ -191,7 +191,7 @@ func TestInitWithMissingImplicitConfigFile(t *testing.T) {
 		t.Fatalf("Init should not fail without config file: %v", err)
 	}
 	cfg := Load()
-	if cfg.Port != ":3000" {
+	if cfg.Port != ":6060" {
 		t.Errorf("expected default port, got %q", cfg.Port)
 	}
 }

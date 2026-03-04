@@ -95,13 +95,13 @@ After switching, confirm everything works:
 
 ```bash
 # Health check
-curl http://localhost:3000/healthz
+curl http://localhost:6060/healthz
 
 # Readiness check
-curl http://localhost:3000/readyz
+curl http://localhost:6060/readyz
 
 # Fetch a module
-GOPROXY=http://localhost:3000 go get github.com/example/module@latest
+GOPROXY=http://localhost:6060 go get github.com/example/module@latest
 ```
 
 ## Rollback

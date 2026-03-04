@@ -9,5 +9,5 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /toga ./cmd/toga/
 FROM golang:1.26-alpine
 RUN apk add --no-cache ca-certificates git
 COPY --from=builder /toga /usr/local/bin/toga
-EXPOSE 3000
+EXPOSE 6060
 ENTRYPOINT ["toga"]

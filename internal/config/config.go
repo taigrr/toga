@@ -160,7 +160,7 @@ func Init(configFile string) error {
 }
 
 func setDefaults() {
-	cm.SetDefault("port", ":3000")
+	cm.SetDefault("port", ":6060")
 	cm.SetDefault("unix_socket", "")
 	cm.SetDefault("tls_cert", "")
 	cm.SetDefault("tls_key", "")
