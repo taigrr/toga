@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -161,12 +162,20 @@ func runServe(cmd *cobra.Command, _ []string) error {
 }
 
 // buildGoEnv constructs the environment variable list for the Go fetcher.
-// It includes both user-specified vars (from config) and Go-specific vars
-// (GOMODCACHE, GOPROXY, GOPRIVATE, etc.) when configured.
+// It starts with the current process environment (so container ENV vars like
+// GOMODCACHE are inherited), then overlays user-specified vars from config,
+// and finally adds Go-specific vars (GOMODCACHE, GOPROXY, GOPRIVATE, etc.)
+// when explicitly configured.
 func buildGoEnv(cfg *config.Config) []string {
-	env := append([]string{}, cfg.GoBinaryEnvVars...)
+	// Start with current process environment so container ENV vars are inherited.
+	env := os.Environ()
 
-	// Add Go-specific environment variables if configured.
+	// Overlay user-specified env vars from config.
+	for _, v := range cfg.GoBinaryEnvVars {
+		env = setEnvVar(env, v)
+	}
+
+	// Add Go-specific environment variables if configured (these take precedence).
 	goVars := map[string]string{
 		"GOMODCACHE": cfg.GoModCache,
 		"GOPROXY":    cfg.GoProxy,
@@ -178,11 +187,29 @@ func buildGoEnv(cfg *config.Config) []string {
 
 	for k, v := range goVars {
 		if v != "" {
-			env = append(env, k+"="+v)
+			env = setEnvVar(env, k+"="+v)
 		}
 	}
 
 	return env
+}
+
+// setEnvVar sets or replaces an environment variable in the given slice.
+// The kv parameter should be in "KEY=value" format.
+func setEnvVar(env []string, kv string) []string {
+	parts := strings.SplitN(kv, "=", 2)
+	if len(parts) != 2 {
+		return env
+	}
+	key := parts[0] + "="
+
+	for i, e := range env {
+		if strings.HasPrefix(e, key) {
+			env[i] = kv
+			return env
+		}
+	}
+	return append(env, kv)
 }
 
 func listen(cfg *config.Config) (net.Listener, error) {
