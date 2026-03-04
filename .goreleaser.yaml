@@ -65,3 +65,4 @@ release:
   github:
     owner: taigrr
     name: toga
+  replace_existing_artifacts: true
