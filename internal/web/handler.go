@@ -217,50 +217,13 @@ func (h *Handler) handleFetch(w http.ResponseWriter, r *http.Request) {
 	fetchPollingFragment(jobID, h.Prefix).Render(ctx, w)
 }
 
-// fetchOne fetches a single module version, caches it, and returns the mod file bytes.
+// fetchOne fetches a single module version and caches it.
 func (h *Handler) fetchOne(ctx context.Context, modPath, version string) FetchResult {
-	h.Logger.Info("fetching module", "module", modPath, "version", version)
-
-	if version == "" || version == "latest" {
-		resolved, _, err := h.Fetcher.Query(ctx, modPath, "latest")
-		if err != nil {
-			return FetchResult{Module: modPath, Err: err}
-		}
-		version = resolved
-	}
-
-	info, mod, zip, err := h.Fetcher.Download(ctx, modPath, version)
-	if err != nil {
-		return FetchResult{Module: modPath + "@" + version, Err: err}
-	}
-	defer info.Close()
-	defer mod.Close()
-	defer zip.Close()
-
-	if h.Cacher != nil {
-		base := modPath + "/@v/" + version
-		for _, pair := range []struct {
-			name string
-			r    io.ReadSeeker
-		}{
-			{base + ".info", info},
-			{base + ".mod", mod},
-			{base + ".zip", zip},
-		} {
-			if _, err := pair.r.Seek(0, io.SeekStart); err != nil {
-				h.Logger.Error("cache seek", "name", pair.name, "error", err)
-				continue
-			}
-			if err := h.Cacher.Put(ctx, pair.name, pair.r); err != nil {
-				h.Logger.Error("cache put", "name", pair.name, "error", err)
-			}
-		}
-	}
-
-	return FetchResult{Module: modPath + "@" + version}
+	_, result := h.fetchModFileBytes(ctx, modPath, version)
+	return result
 }
 
-// fetchModFileBytes fetches a module and returns the go.mod content along with the result.
+// fetchModFileBytes fetches a module, caches it, and returns the go.mod content along with the result.
 func (h *Handler) fetchModFileBytes(ctx context.Context, modPath, version string) ([]byte, FetchResult) {
 	h.Logger.Info("fetching module", "module", modPath, "version", version)
 
