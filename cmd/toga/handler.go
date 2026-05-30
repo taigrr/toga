@@ -77,7 +77,7 @@ func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher gop
 	if cfg.HomeTemplatePath != "" {
 		mux.HandleFunc("/", homeOrProxy(cfg.HomeTemplatePath, handler, logger))
 	} else {
-		mux.Handle("/", handler)
+		mux.HandleFunc("/", rootRedirectOrProxy(handler))
 	}
 
 	return mux
@@ -138,6 +138,16 @@ func robotsHandler(path string, logger *slog.Logger) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.Write(data)
+	}
+}
+
+func rootRedirectOrProxy(proxyHandler http.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			proxyHandler.ServeHTTP(w, r)
+			return
+		}
+		http.Redirect(w, r, "/-/ui/", http.StatusFound)
 	}
 }
 
