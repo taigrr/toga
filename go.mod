@@ -1,6 +1,6 @@
 module github.com/taigrr/toga
 
-go 1.26.3
+go 1.26.4
 
 require (
 	cloud.google.com/go/storage v1.62.2
@@ -68,7 +68,6 @@ require (
 	github.com/envoyproxy/go-control-plane/envoy v1.37.0 // indirect
 	github.com/envoyproxy/protoc-gen-validate v1.3.3 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-ini/ini v1.67.1 // indirect
 	github.com/go-jose/go-jose/v4 v4.1.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
