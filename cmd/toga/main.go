@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -23,6 +24,16 @@ import (
 )
 
 var version = "dev"
+
+func resolveVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok && info.Main.Version != "" && info.Main.Version != "(devel)" {
+		return info.Main.Version
+	}
+	return version
+}
 
 const readHeaderTimeout = 5 * time.Second
 
@@ -41,7 +52,7 @@ func main() {
 
 	rootCmd.PersistentFlags().StringVar(&configFile, "config", "", "path to config file (toml/yaml/json)")
 
-	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(version)); err != nil {
+	if err := fang.Execute(context.Background(), rootCmd, fang.WithVersion(resolveVersion())); err != nil {
 		os.Exit(1)
 	}
 }
