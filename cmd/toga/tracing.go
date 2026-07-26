@@ -21,7 +21,7 @@ func initTracer(ctx context.Context, cfg *config.Config) (func(context.Context) 
 	res, err := resource.New(ctx,
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String("toga"),
-			semconv.ServiceVersionKey.String(version),
+			semconv.ServiceVersionKey.String(resolveVersion()),
 		),
 	)
 	if err != nil {
