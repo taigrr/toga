@@ -19,6 +19,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Format check
+        run: test -z "$(gofmt -l .)" || { echo 'gofmt found unformatted files:'; gofmt -l .; exit 1; }
+
       - name: Build
         run: go build ./...
 
@@ -32,3 +35,6 @@ jobs:
         uses: dominikh/staticcheck-action@v1
         with:
           version: latest
+
+      - name: Govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
