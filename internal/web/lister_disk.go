@@ -193,7 +193,11 @@ func (d *DiskLister) loadModuleDetail(modPath string) Module {
 
 // ListFiles returns all cached files for a module path.
 func (d *DiskLister) ListFiles(_ context.Context, modulePath string) ([]FileEntry, error) {
-	dir := filepath.Join(d.Root, filepath.FromSlash(modulePath), "@v")
+	modDir, err := cachePath(d.Root, modulePath)
+	if err != nil {
+		return nil, err
+	}
+	dir := filepath.Join(modDir, "@v")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -222,28 +226,36 @@ func (d *DiskLister) ListFiles(_ context.Context, modulePath string) ([]FileEntr
 
 // GetFile returns a cached file by its cache-relative name.
 func (d *DiskLister) GetFile(_ context.Context, name string) (io.ReadCloser, error) {
-	if strings.Contains(name, "..") || strings.HasPrefix(name, "/") {
-		return nil, fmt.Errorf("invalid file path: %s", name)
+	path, err := cachePath(d.Root, name)
+	if err != nil {
+		return nil, err
 	}
-	return os.Open(filepath.Join(d.Root, filepath.FromSlash(name)))
+	return os.Open(path)
 }
 
 // DeleteModule removes cached files for a module path and optional version.
 func (d *DiskLister) DeleteModule(_ context.Context, modulePath, version string) error {
+	modDir, err := cachePath(d.Root, modulePath)
+	if err != nil {
+		return err
+	}
+
 	if version != "" {
-		dir := filepath.Join(d.Root, filepath.FromSlash(modulePath), "@v")
+		if err := validateCacheLeaf(version); err != nil {
+			return err
+		}
+		dir := filepath.Join(modDir, "@v")
 		for _, ext := range versionExts {
 			os.Remove(filepath.Join(dir, version+ext))
 		}
 		entries, err := os.ReadDir(dir)
 		if err == nil && len(entries) == 0 {
 			os.Remove(dir)
-			cleanEmptyParents(d.Root, filepath.Join(d.Root, filepath.FromSlash(modulePath)))
+			cleanEmptyParents(d.Root, modDir)
 		}
 		return nil
 	}
 
-	modDir := filepath.Join(d.Root, filepath.FromSlash(modulePath))
 	if err := os.RemoveAll(modDir); err != nil {
 		return err
 	}
@@ -263,4 +275,28 @@ func cleanEmptyParents(root, dir string) {
 		}
 		os.Remove(dir)
 	}
+}
+
+func cachePath(root, slashPath string) (string, error) {
+	if slashPath == "" {
+		return "", fmt.Errorf("invalid cache path: %q", slashPath)
+	}
+	parts := strings.Split(filepath.ToSlash(slashPath), "/")
+	for _, part := range parts {
+		if part == "" || part == "." || part == ".." {
+			return "", fmt.Errorf("invalid cache path: %q", slashPath)
+		}
+	}
+	local := filepath.FromSlash(slashPath)
+	if !filepath.IsLocal(local) {
+		return "", fmt.Errorf("invalid cache path: %q", slashPath)
+	}
+	return filepath.Join(root, local), nil
+}
+
+func validateCacheLeaf(name string) error {
+	if name == "" || name == "." || name == ".." || strings.ContainsAny(name, `/\`) {
+		return fmt.Errorf("invalid cache file name: %q", name)
+	}
+	return nil
 }
