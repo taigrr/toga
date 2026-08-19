@@ -1,6 +1,6 @@
 module github.com/taigrr/toga
 
-go 1.26.5
+go 1.26.6
 
 require (
 	cloud.google.com/go/storage v1.64.0
@@ -17,7 +17,7 @@ require (
 	go.opentelemetry.io/otel v1.44.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.44.0
 	go.opentelemetry.io/otel/sdk v1.44.0
-	golang.org/x/mod v0.38.0
+	golang.org/x/mod v0.40.0
 	google.golang.org/api v0.290.0
 )
 
