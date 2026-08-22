@@ -2,6 +2,8 @@ package web
 
 import (
 	"context"
+	"errors"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -143,6 +145,34 @@ func TestDiskListerGetFile(t *testing.T) {
 	rc.Close()
 }
 
+func TestDiskListerGetFileRejectsUnsafePaths(t *testing.T) {
+	root := setupTestCache(t)
+	lister := &DiskLister{Root: root}
+	ctx := context.Background()
+
+	for _, name := range []string{
+		"../outside",
+		"github.com/example/foo/../../outside",
+		"/github.com/example/foo/@v/v1.0.0.info",
+		"github.com//example/foo/@v/v1.0.0.info",
+	} {
+		if _, err := lister.GetFile(ctx, name); err == nil {
+			t.Fatalf("expected error for unsafe path %q", name)
+		}
+	}
+}
+
+func TestDiskListerListFilesRejectsUnsafeModulePath(t *testing.T) {
+	root := setupTestCache(t)
+	lister := &DiskLister{Root: root}
+
+	for _, modulePath := range []string{"../outside", "github.com/example/../outside", "/github.com/example/foo"} {
+		if _, err := lister.ListFiles(context.Background(), modulePath); err == nil {
+			t.Fatalf("expected error for unsafe module path %q", modulePath)
+		}
+	}
+}
+
 func TestDiskListerDeleteVersion(t *testing.T) {
 	root := setupTestCache(t)
 	lister := &DiskLister{Root: root}
@@ -155,6 +185,36 @@ func TestDiskListerDeleteVersion(t *testing.T) {
 	files, _ := lister.ListFiles(ctx, "github.com/example/bar")
 	if len(files) != 0 {
 		t.Errorf("expected 0 files after delete, got %d", len(files))
+	}
+}
+
+func TestDiskListerDeleteModuleRejectsUnsafePaths(t *testing.T) {
+	root := setupTestCache(t)
+	outside := filepath.Join(filepath.Dir(root), "outside.info")
+	if err := os.WriteFile(outside, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	lister := &DiskLister{Root: root}
+	for _, tt := range []struct {
+		modulePath string
+		version    string
+	}{
+		{modulePath: "../outside"},
+		{modulePath: "github.com/example/foo/../../outside"},
+		{modulePath: "github.com/example/foo", version: "../outside"},
+		{modulePath: "github.com/example/foo", version: "v1.0.0/../../outside"},
+	} {
+		if err := lister.DeleteModule(context.Background(), tt.modulePath, tt.version); err == nil {
+			t.Fatalf("expected error for module path %q version %q", tt.modulePath, tt.version)
+		}
+	}
+
+	if _, err := os.Stat(outside); err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			t.Fatalf("unsafe delete removed %s", outside)
+		}
+		t.Fatal(err)
 	}
 }
 
