@@ -11,8 +11,8 @@ import (
 
 	cloudstorage "cloud.google.com/go/storage"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/goproxy/goproxy"
-	"github.com/minio/minio-go/v7"
 	"github.com/taigrr/log-socket/v2/browser"
 	"github.com/taigrr/log-socket/v2/ws"
 	"github.com/taigrr/toga/internal/config"
@@ -84,8 +84,8 @@ func buildHandler(proxy *goproxy.Goproxy, fetcher *goproxy.GoFetcher, cacher gop
 }
 
 func newLister(cacher goproxy.Cacher, cfg *config.Config) web.Lister {
-	type minioBackend interface {
-		MinioClient() *minio.Client
+	type s3Backend interface {
+		S3Client() *s3.Client
 		BucketName() string
 	}
 	type gcsBackend interface {
@@ -98,9 +98,9 @@ func newLister(cacher goproxy.Cacher, cfg *config.Config) web.Lister {
 	}
 
 	switch b := cacher.(type) {
-	case minioBackend:
+	case s3Backend:
 		return &web.ObjectStoreLister{
-			Client: b.MinioClient(),
+			Client: b.S3Client(),
 			Bucket: b.BucketName(),
 		}
 	case gcsBackend:

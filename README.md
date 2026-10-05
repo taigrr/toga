@@ -79,6 +79,8 @@ toga
 | GCS        | `gcs`               |        Yes        |
 | Azure Blob | `azureblob`         |        Yes        |
 
+The `s3` and `minio` backends share one implementation built on the AWS SDK for Go v2. `minio` is a convenience alias for any S3-compatible store reached via a custom endpoint (MinIO, RustFS, Garage, SeaweedFS, Ceph RGW, etc.): it forces path-style addressing and creates the bucket on startup. With `s3`, leaving `TOGA_S3_KEY`/`TOGA_S3_SECRET` empty uses the default AWS credential chain (env, shared config, IMDS, IRSA, EKS Pod Identity).
+
 ## Configuration
 
 Toga is configured with environment variables (prefix `TOGA_`) or a config file (`toga.toml`, `toga.yaml`, `toga.json`).
@@ -122,18 +124,18 @@ Toga is configured with environment variables (prefix `TOGA_`) or a config file 
 | `TOGA_S3_SECRET`           | Secret access key           |
 | `TOGA_S3_TOKEN`            | Session token               |
 | `TOGA_S3_ENDPOINT`         | S3-compatible endpoint      |
-| `TOGA_S3_FORCE_PATH_STYLE` | Path-style access (`false`) |
+| `TOGA_S3_FORCE_PATH_STYLE` | Path-style access (`false`; always on when `TOGA_S3_ENDPOINT` is set) |
 
-### Storage: MinIO
+### Storage: MinIO (any S3-compatible store)
 
-| Variable                | Description          |
-| ----------------------- | -------------------- |
-| `TOGA_MINIO_ENDPOINT`   | MinIO endpoint       |
-| `TOGA_MINIO_KEY`        | Access key           |
-| `TOGA_MINIO_SECRET`     | Secret key           |
-| `TOGA_MINIO_BUCKET`     | Bucket name          |
-| `TOGA_MINIO_REGION`     | Region               |
-| `TOGA_MINIO_ENABLE_SSL` | Enable SSL (`false`) |
+| Variable                | Description                         |
+| ----------------------- | ----------------------------------- |
+| `TOGA_MINIO_ENDPOINT`   | Endpoint `host:port` (no scheme)    |
+| `TOGA_MINIO_KEY`        | Access key                          |
+| `TOGA_MINIO_SECRET`     | Secret key                          |
+| `TOGA_MINIO_BUCKET`     | Bucket name (auto-created)          |
+| `TOGA_MINIO_REGION`     | Region                              |
+| `TOGA_MINIO_ENABLE_SSL` | Enable SSL (`false`)                |
 
 ### Storage: GCS
 

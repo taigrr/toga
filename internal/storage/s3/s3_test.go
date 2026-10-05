@@ -7,48 +7,30 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/minio/minio-go/v7"
-	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
+	"github.com/taigrr/toga/internal/storage/s3test"
 )
 
-const (
-	testBucket    = "toga-s3-test"
-	testAccessKey = "minioadmin"
-	testSecretKey = "minioadmin"
-)
+const testBucket = "toga-s3-test"
 
 func newTestCacher(t *testing.T) *Cacher {
 	t.Helper()
 	ctx := context.Background()
-
-	container, err := tcminio.Run(ctx,
-		"minio/minio:latest",
-		tcminio.WithUsername(testAccessKey),
-		tcminio.WithPassword(testSecretKey),
-	)
-	if err != nil {
-		t.Fatalf("start minio container: %v", err)
-	}
-	t.Cleanup(func() { container.Terminate(ctx) })
-
-	endpoint, err := container.ConnectionString(ctx)
-	if err != nil {
-		t.Fatalf("get connection string: %v", err)
-	}
+	srv := s3test.Start(t)
 
 	c, err := New(ctx, Config{
-		Endpoint:       "http://" + endpoint,
-		Key:            testAccessKey,
-		Secret:         testSecretKey,
+		Endpoint:       srv.Endpoint,
+		Key:            s3test.AccessKey,
+		Secret:         s3test.SecretKey,
 		Bucket:         testBucket,
-		Region:         "us-east-1",
+		Region:         s3test.Region,
 		ForcePathStyle: true,
 	})
 	if err != nil {
 		t.Fatalf("new s3 cacher: %v", err)
 	}
-
-	c.client.MakeBucket(ctx, testBucket, minio.MakeBucketOptions{Region: "us-east-1"})
+	if err := c.EnsureBucket(ctx); err != nil {
+		t.Fatalf("ensure bucket: %v", err)
+	}
 
 	return c
 }
@@ -87,6 +69,25 @@ func TestGetMiss(t *testing.T) {
 	}
 	if err != fs.ErrNotExist {
 		t.Errorf("expected fs.ErrNotExist, got %v", err)
+	}
+}
+
+func TestGetMissingBucket(t *testing.T) {
+	c := newTestCacher(t)
+	c.bucket = "toga-does-not-exist"
+	_, err := c.Get(context.Background(), "some/key")
+	if err != fs.ErrNotExist {
+		t.Errorf("expected fs.ErrNotExist for missing bucket, got %v", err)
+	}
+}
+
+func TestEnsureBucketIdempotent(t *testing.T) {
+	c := newTestCacher(t)
+	ctx := context.Background()
+	for i := 0; i < 2; i++ {
+		if err := c.EnsureBucket(ctx); err != nil {
+			t.Fatalf("ensure bucket (call %d): %v", i+1, err)
+		}
 	}
 }
 
@@ -129,23 +130,69 @@ func TestLargeFile(t *testing.T) {
 	}
 }
 
-func TestParseEndpoint(t *testing.T) {
+func TestNormalizeEndpoint(t *testing.T) {
 	tests := []struct {
-		cfg      Config
-		endpoint string
-		secure   bool
+		in   string
+		want string
 	}{
-		{Config{}, "s3.us-east-1.amazonaws.com", true},
-		{Config{Region: "eu-west-1"}, "s3.eu-west-1.amazonaws.com", true},
-		{Config{Endpoint: "http://localhost:9000"}, "localhost:9000", false},
-		{Config{Endpoint: "https://s3.custom.com"}, "s3.custom.com", true},
-		{Config{Endpoint: "minio.local:9000"}, "minio.local:9000", true},
+		{"", ""},
+		{"http://localhost:9000", "http://localhost:9000"},
+		{"https://s3.custom.com", "https://s3.custom.com"},
+		{"minio.local:9000", "https://minio.local:9000"},
 	}
 	for _, tt := range tests {
-		ep, sec := parseEndpoint(tt.cfg)
-		if ep != tt.endpoint || sec != tt.secure {
-			t.Errorf("parseEndpoint(%+v) = (%q, %v), want (%q, %v)",
-				tt.cfg, ep, sec, tt.endpoint, tt.secure)
+		if got := normalizeEndpoint(tt.in); got != tt.want {
+			t.Errorf("normalizeEndpoint(%q) = %q, want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestPathStyleDefaultsForCustomEndpoint(t *testing.T) {
+	for _, name := range []string{"AWS_ENDPOINT_URL", "AWS_ENDPOINT_URL_S3", "AWS_PROFILE", "AWS_CONFIG_FILE", "AWS_SHARED_CREDENTIALS_FILE"} {
+		t.Setenv(name, "")
+	}
+	ctx := context.Background()
+	tests := []struct {
+		cfg  Config
+		want bool
+	}{
+		{Config{}, false},
+		{Config{ForcePathStyle: true}, true},
+		{Config{Endpoint: "minio.local:9000"}, true},
+		{Config{Endpoint: "http://localhost:9000", ForcePathStyle: false}, true},
+	}
+	for _, tt := range tests {
+		tt.cfg.Key, tt.cfg.Secret = "k", "s"
+		c, err := New(ctx, tt.cfg)
+		if err != nil {
+			t.Fatalf("New(%+v): %v", tt.cfg, err)
+		}
+		if got := c.client.Options().UsePathStyle; got != tt.want {
+			t.Errorf("UsePathStyle for %+v = %v, want %v", tt.cfg, got, tt.want)
+		}
+	}
+}
+
+func TestPutFromOffset(t *testing.T) {
+	c := newTestCacher(t)
+	ctx := context.Background()
+
+	name := "github.com/example/mod/@v/v1.0.0.info"
+	rdr := strings.NewReader("HEADERpayload")
+	if _, err := rdr.Seek(6, io.SeekStart); err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Put(ctx, name, rdr); err != nil {
+		t.Fatalf("put: %v", err)
+	}
+
+	rc, err := c.Get(ctx, name)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer rc.Close()
+	data, _ := io.ReadAll(rc)
+	if string(data) != "payload" {
+		t.Errorf("expected %q, got %q", "payload", data)
 	}
 }

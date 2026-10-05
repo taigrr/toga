@@ -7,40 +7,22 @@ import (
 	"strings"
 	"testing"
 
-	tcminio "github.com/testcontainers/testcontainers-go/modules/minio"
+	"github.com/taigrr/toga/internal/storage/s3test"
 )
 
-const (
-	testBucket    = "toga-minio-test"
-	testAccessKey = "minioadmin"
-	testSecretKey = "minioadmin"
-)
+const testBucket = "toga-minio-test"
 
 func newTestCacher(t *testing.T) *Cacher {
 	t.Helper()
 	ctx := context.Background()
-
-	container, err := tcminio.Run(ctx,
-		"minio/minio:latest",
-		tcminio.WithUsername(testAccessKey),
-		tcminio.WithPassword(testSecretKey),
-	)
-	if err != nil {
-		t.Fatalf("start minio container: %v", err)
-	}
-	t.Cleanup(func() { container.Terminate(ctx) })
-
-	endpoint, err := container.ConnectionString(ctx)
-	if err != nil {
-		t.Fatalf("get connection string: %v", err)
-	}
+	srv := s3test.Start(t)
 
 	c, err := New(ctx, Config{
-		Endpoint: endpoint,
-		Key:      testAccessKey,
-		Secret:   testSecretKey,
+		Endpoint: srv.HostPort,
+		Key:      s3test.AccessKey,
+		Secret:   s3test.SecretKey,
 		Bucket:   testBucket,
-		Region:   "us-east-1",
+		Region:   s3test.Region,
 	})
 	if err != nil {
 		t.Fatalf("new minio cacher: %v", err)
@@ -123,28 +105,14 @@ func TestLargeFile(t *testing.T) {
 
 func TestBucketAutoCreation(t *testing.T) {
 	ctx := context.Background()
-
-	container, err := tcminio.Run(ctx,
-		"minio/minio:latest",
-		tcminio.WithUsername(testAccessKey),
-		tcminio.WithPassword(testSecretKey),
-	)
-	if err != nil {
-		t.Fatalf("start minio container: %v", err)
-	}
-	t.Cleanup(func() { container.Terminate(ctx) })
-
-	endpoint, err := container.ConnectionString(ctx)
-	if err != nil {
-		t.Fatalf("get connection string: %v", err)
-	}
+	srv := s3test.Start(t)
 
 	c, err := New(ctx, Config{
-		Endpoint: endpoint,
-		Key:      testAccessKey,
-		Secret:   testSecretKey,
+		Endpoint: srv.HostPort,
+		Key:      s3test.AccessKey,
+		Secret:   s3test.SecretKey,
 		Bucket:   "toga-auto-create",
-		Region:   "us-east-1",
+		Region:   s3test.Region,
 	})
 	if err != nil {
 		t.Fatalf("new cacher with auto-create: %v", err)
@@ -152,5 +120,23 @@ func TestBucketAutoCreation(t *testing.T) {
 
 	if err := c.Put(ctx, "test-key", strings.NewReader("hello")); err != nil {
 		t.Fatalf("put after auto-create: %v", err)
+	}
+}
+
+func TestEndpointURL(t *testing.T) {
+	tests := []struct {
+		endpoint string
+		ssl      bool
+		want     string
+	}{
+		{"host:9000", false, "http://host:9000"},
+		{"host:9000", true, "https://host:9000"},
+		{"http://host:9000", true, "https://host:9000"},
+		{"https://host:9000", false, "http://host:9000"},
+	}
+	for _, tt := range tests {
+		if got := endpointURL(tt.endpoint, tt.ssl); got != tt.want {
+			t.Errorf("endpointURL(%q, %v) = %q, want %q", tt.endpoint, tt.ssl, got, tt.want)
+		}
 	}
 }

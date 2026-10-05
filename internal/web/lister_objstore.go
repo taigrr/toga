@@ -7,14 +7,37 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/minio/minio-go/v7"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-// ObjectStoreLister implements Lister for S3/MinIO backends using the minio-go client.
-// It uses ListObjects with delimiter to paginate efficiently server-side.
+const keyDelimiter = "/"
+
+// ObjectStoreLister implements Lister for S3-compatible backends using the AWS SDK.
+// It uses ListObjectsV2 with delimiter to paginate efficiently server-side.
 type ObjectStoreLister struct {
-	Client *minio.Client
+	Client *s3.Client
 	Bucket string
+}
+
+// listObjects walks ListObjectsV2 pages and calls fn for each object.
+// fn returns false to stop iteration early.
+func (o *ObjectStoreLister) listObjects(ctx context.Context, in *s3.ListObjectsV2Input, fn func(types.Object) bool) error {
+	in.Bucket = aws.String(o.Bucket)
+	paginator := s3.NewListObjectsV2Paginator(o.Client, in)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		for _, obj := range page.Contents {
+			if !fn(obj) {
+				return nil
+			}
+		}
+	}
+	return nil
 }
 
 // ListModules uses S3 ListObjects to enumerate module paths.
@@ -39,39 +62,33 @@ func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query strin
 	var collected []string
 
 	// If we have a cursor and no query, use StartAfter to skip server-side.
-	opts := minio.ListObjectsOptions{
-		Recursive: true,
-	}
+	in := &s3.ListObjectsV2Input{}
 	if cursor != "" && query == "" {
 		// Start listing from cursor/@v to skip everything before.
-		opts.StartAfter = cursor + versionPrefix
+		in.StartAfter = aws.String(cursor + versionPrefix)
 	}
 
-	for obj := range o.Client.ListObjects(ctx, o.Bucket, opts) {
-		if obj.Err != nil {
-			return nil, obj.Err
-		}
-
-		atV := versionPrefix
-		idx := strings.LastIndex(obj.Key, atV)
+	err := o.listObjects(ctx, in, func(obj types.Object) bool {
+		key := aws.ToString(obj.Key)
+		idx := strings.LastIndex(key, versionPrefix)
 		if idx < 0 {
-			continue
+			return true
 		}
-		modPath := obj.Key[:idx]
+		modPath := key[:idx]
 
 		// Skip if already seen.
 		if _, ok := seen[modPath]; ok {
-			continue
+			return true
 		}
 
 		// Apply query filter.
 		if lowerQuery != "" && !strings.Contains(strings.ToLower(modPath), lowerQuery) {
-			continue
+			return true
 		}
 
 		// Apply cursor (needed when query is set, since StartAfter won't work).
 		if cursor != "" && modPath <= cursor {
-			continue
+			return true
 		}
 
 		seen[modPath] = struct{}{}
@@ -81,9 +98,10 @@ func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query strin
 		// But with query filtering we can't stop early since results
 		// may not be contiguous. Without query, S3 order is lexicographic
 		// and StartAfter handles the cursor, so we can stop.
-		if query == "" && len(collected) > limit {
-			break
-		}
+		return !(query == "" && len(collected) > limit)
+	})
+	if err != nil {
+		return nil, err
 	}
 
 	// Sort (should already be sorted from S3, but ensure after filtering).
@@ -95,10 +113,7 @@ func (o *ObjectStoreLister) ListModules(ctx context.Context, cursor, query strin
 		total = len(collected)
 	}
 
-	endIdx := limit
-	if endIdx > len(collected) {
-		endIdx = len(collected)
-	}
+	endIdx := min(limit, len(collected))
 
 	page := &ModulePage{Total: total}
 
@@ -124,21 +139,17 @@ func (o *ObjectStoreLister) loadModuleDetail(ctx context.Context, modPath string
 	prefix := modPath + versionPrefix
 
 	versions := make(map[string]*Version)
-	for obj := range o.Client.ListObjects(ctx, o.Bucket, minio.ListObjectsOptions{
-		Prefix:    prefix,
-		Recursive: false,
-	}) {
-		if obj.Err != nil {
-			return m, obj.Err
-		}
-
-		name := strings.TrimPrefix(obj.Key, prefix)
+	err := o.listObjects(ctx, &s3.ListObjectsV2Input{
+		Prefix:    aws.String(prefix),
+		Delimiter: aws.String(keyDelimiter),
+	}, func(obj types.Object) bool {
+		name := strings.TrimPrefix(aws.ToString(obj.Key), prefix)
 		if name == "list" || name == "" {
-			continue
+			return true
 		}
 		ext := path.Ext(name)
 		if ext != ".info" && ext != ".mod" && ext != ".zip" {
-			continue
+			return true
 		}
 
 		ver := strings.TrimSuffix(name, ext)
@@ -151,13 +162,17 @@ func (o *ObjectStoreLister) loadModuleDetail(ctx context.Context, modPath string
 		switch ext {
 		case ".info":
 			v.HasInfo = true
-			v.Time = obj.LastModified
+			v.Time = aws.ToTime(obj.LastModified)
 		case ".mod":
 			v.HasMod = true
 		case ".zip":
 			v.HasZip = true
-			v.Size = obj.Size
+			v.Size = aws.ToInt64(obj.Size)
 		}
+		return true
+	})
+	if err != nil {
+		return m, err
 	}
 
 	for _, v := range versions {
@@ -170,66 +185,78 @@ func (o *ObjectStoreLister) loadModuleDetail(ctx context.Context, modPath string
 	return m, nil
 }
 
-// ListFiles lists all objects under module/@v/.
 // ListFiles lists all objects under a module's version prefix.
 func (o *ObjectStoreLister) ListFiles(ctx context.Context, modulePath string) ([]FileEntry, error) {
 	prefix := modulePath + versionPrefix
 	var files []FileEntry
 
-	for obj := range o.Client.ListObjects(ctx, o.Bucket, minio.ListObjectsOptions{
-		Prefix:    prefix,
-		Recursive: false,
-	}) {
-		if obj.Err != nil {
-			return nil, obj.Err
-		}
-		name := strings.TrimPrefix(obj.Key, prefix)
+	err := o.listObjects(ctx, &s3.ListObjectsV2Input{
+		Prefix:    aws.String(prefix),
+		Delimiter: aws.String(keyDelimiter),
+	}, func(obj types.Object) bool {
+		name := strings.TrimPrefix(aws.ToString(obj.Key), prefix)
 		if name == "" {
-			continue
+			return true
 		}
 		files = append(files, FileEntry{
 			Name:    name,
-			Size:    obj.Size,
-			ModTime: obj.LastModified,
+			Size:    aws.ToInt64(obj.Size),
+			ModTime: aws.ToTime(obj.LastModified),
 		})
+		return true
+	})
+	if err != nil {
+		return nil, err
 	}
 	return files, nil
 }
 
 // GetFile retrieves a single object from the store.
 func (o *ObjectStoreLister) GetFile(ctx context.Context, name string) (io.ReadCloser, error) {
-	obj, err := o.Client.GetObject(ctx, o.Bucket, name, minio.GetObjectOptions{})
+	out, err := o.Client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(o.Bucket),
+		Key:    aws.String(name),
+	})
 	if err != nil {
 		return nil, err
 	}
-	// Verify the object exists.
-	if _, err := obj.Stat(); err != nil {
-		obj.Close()
-		return nil, err
-	}
-	return obj, nil
+	return out.Body, nil
 }
 
 // DeleteModule removes cached files for a module from the object store.
+// S3 DeleteObject is idempotent, so missing keys are not errors.
 func (o *ObjectStoreLister) DeleteModule(ctx context.Context, modulePath, version string) error {
 	if version != "" {
 		for _, ext := range versionExts {
 			key := modulePath + versionPrefix + version + ext
-			_ = o.Client.RemoveObject(ctx, o.Bucket, key, minio.RemoveObjectOptions{})
+			if _, err := o.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+				Bucket: aws.String(o.Bucket),
+				Key:    aws.String(key),
+			}); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 
-	// Delete all objects with this module prefix.
+	// Delete all objects with this module prefix. Keys are collected first
+	// so deletes never race the listing on stores with fragile pagination.
 	prefix := modulePath + versionPrefix
-	for obj := range o.Client.ListObjects(ctx, o.Bucket, minio.ListObjectsOptions{
-		Prefix:    prefix,
-		Recursive: true,
-	}) {
-		if obj.Err != nil {
-			return obj.Err
-		}
-		if err := o.Client.RemoveObject(ctx, o.Bucket, obj.Key, minio.RemoveObjectOptions{}); err != nil {
+	var keys []string
+	err := o.listObjects(ctx, &s3.ListObjectsV2Input{
+		Prefix: aws.String(prefix),
+	}, func(obj types.Object) bool {
+		keys = append(keys, aws.ToString(obj.Key))
+		return true
+	})
+	if err != nil {
+		return err
+	}
+	for _, key := range keys {
+		if _, err := o.Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(o.Bucket),
+			Key:    aws.String(key),
+		}); err != nil {
 			return err
 		}
 	}
